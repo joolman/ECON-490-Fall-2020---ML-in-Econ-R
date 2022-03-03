@@ -1,0 +1,273 @@
+---
+title: "Lecture 5: Regression"
+author: "ECON 490: Applied ML in Econ"
+date: "Fall 2020"
+output: 
+  powerpoint_presentation:
+    reference_doc: ECON_490.potx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+path = 'C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data'
+list.files(path)
+cps = fread(paste0(path, '/cps_00026.csv'))
+
+names(cps) = cps %>% names %>% tolower # Who wants to hold down shift all the time?
+names(cps)
+
+cps = cps[cps$wkswork1 > 40, ]
+
+table(cps$educ)
+
+cps$yos = 0
+cps$yos[cps$educ == 1] = NA
+cps$yos[cps$educ == 2] = 0
+cps$yos[cps$educ == 10] = 4
+cps$yos[cps$educ == 20] = 6
+cps$yos[cps$educ == 30] = 8
+cps$yos[cps$educ == 40] = 9
+cps$yos[cps$educ == 50] = 10
+cps$yos[cps$educ == 60] = 11
+cps$yos[cps$educ %in% c(70:73)] = 12 
+cps$yos[cps$educ == 81] = 13
+cps$yos[cps$educ %in% c(91,92)] = 14
+cps$yos[cps$educ == 111] = 16
+cps$yos[cps$educ == 123] = 18
+cps$yos[cps$educ %in% c(124:125)] = 20 
+cps = na.omit(cps)
+
+cps = cps %>%
+  mutate(exp = age - yos - 6,
+         female = sex - 1,
+         kids = (nchild > 0)*1,
+         black = (race == 200)*1)
+
+cps = cps[cps$incwage > 5000, ]
+
+
+sfit = lm(log(incwage) ~ yos + exp + I(exp^2) + female*kids + black, cps) %>% summary
+
+```
+
+##
+$log(wage_i) = log(wage_0) + yos_i \beta_1 + exp_i\beta_2 + exp_i^2 \beta_3 + \epsilon$
+
+$log(wage_i) = log(wage_0) + yos_i \beta_1 + exp_i\beta_2 + exp_i^2 \beta_3 + female_i \beta_4 + kids_i \beta_5 + female_ikids_i\beta_6 + black_i \beta_7 + \epsilon$
+
+
+```{r, echo = FALSE}
+coef(sfit)
+a = coef(sfit)[3,1]
+b = coef(sfit)[4,1]
+summary(cps$exp)
+
+x = seq(0, 40)
+y = a + b*x
+df = data.frame(x,y)
+```
+
+
+
+##
+```{r, echo = FALSE}
+
+gm = 
+  read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/gapminder_2007.csv')
+
+lm(log(gdpPercap) ~ lifeExp, gm) %>% summary
+
+```
+
+
+##
+$\implies \approx$
+```{r, echo = FALSE, message = FALSE}
+# Packagages that make me happy
+library(tidyverse)
+library(data.table)
+
+hw = fread('C:/Users/johnj/Documents/Data/nhis/height_weight.csv') %>% as_tibble
+names(hw) = hw %>% names %>% tolower
+
+
+hw = hw %>% 
+  filter(year == 2010,
+         height < 95 & height > 0)
+
+male = hw %>%
+  filter(sex == 1,
+         weight > 126 & weight < 299) %>%
+  mutate(Gender = 'Male')
+
+lm(height ~ weight, male) %>% summary
+```
+
+
+
+##
+```{r, echo = FALSE}
+x = seq(0,8, length = 1000)
+y = (x-4)^2 + 2
+df = tibble(x = x, y = y)
+ggplot(df, aes(x=x, y=y)) +
+  geom_line() +
+  labs(x = 'y - yhat', y = 'MSE') +
+  theme_classic() +
+  ylim(0, 18) +
+  theme(axis.ticks = element_blank(), axis.text = element_blank(), text = element_text(size = 20))
+```
+
+##
+```{r, echo = FALSE}
+tibble(x = seq(-2, 8)) %>%
+  mutate(y = -.5*x + 3) %>%
+  ggplot(aes(x,y)) +
+  geom_line() +
+  labs(x = 'Education', y = 'dlog(wage)/dEducation') +
+  theme_classic() +
+  theme(axis.ticks = element_blank(), axis.text = element_blank(), text = element_text(size = 20))
+```
+## Math
+
+$Y = \alpha + X_1 \beta_1 + ... X_p \beta_p + \epsilon$
+
+$eplison \sim N(0, \sigma^2)$ $R^2$ $\implies$
+
+
+$\hat{y} = \hat{\alpha} + x_1 \hat{\beta_1} + ... x_p \hat{\beta_p} + e$
+
+$\text{MSE} = \frac{1}{n}\sum_{i=1}^n (y_i - \widehat{f(X_i)})^2$
+
+$$\hat{\alpha}, \hat{\beta} = \text{argmin } \frac{1}{n} \sum_{i=1}^n (y_i - (\alpha + x_1\beta_1))^2$$
+
+## Matrix
+
+$$
+\begin{bmatrix}
+  y_1\\
+  y_2\\
+  \vdots\\
+  y_n
+\end{bmatrix}
+=
+\begin{bmatrix}
+  1\\
+  1\\
+  \vdots\\
+  1
+\end{bmatrix}
+\alpha + 
+\begin{bmatrix}
+  x_{1,1}\\
+  x_{2,1}\\
+  \vdots\\
+  x_{n,1}
+\end{bmatrix}
+\beta_1 + ... +
+\begin{bmatrix}
+  x_{1,p}\\
+  x_{2,p}\\
+  \vdots\\
+  x_{n,p}
+\end{bmatrix}
+\beta_p
++ 
+\begin{bmatrix}
+  e_1\\
+  e_2\\
+  \vdots\\
+  e_n
+\end{bmatrix}
+$$
+
+$$
+\begin{bmatrix}
+  y_1\\
+  y_2\\
+  \vdots\\
+  y_n
+\end{bmatrix}
+=
+\begin{bmatrix}
+  1 & x_{1,1} & \dots & x_{1,p}\\
+  1 & x_{2,1} & \dots & x_{2,p}\\
+  \vdots & \vdots & \ddots & \vdots\\
+  1 & x_{n,1} & \dots & x_{n,p}
+\end{bmatrix}
+\begin{bmatrix}
+  \alpha\\
+  \beta_1\\
+  \vdots\\
+  \beta_p
+\end{bmatrix}
++ 
+\begin{bmatrix}
+  e_1\\
+  e_2\\
+  \vdots\\
+  e_n
+\end{bmatrix}
+$$
+
+## Math
+$\hat{\beta} = (X^\prime X)^{-1}X^\prime y$
+
+$X_i^2$
+
+$\frac{\partial log(wage)}{\partial Education} = \beta_1 + Education \beta_2$
+
+$$log(Wage) = \alpha + 
+\begin{cases}
+  \beta_1 & Black = true\\
+  0 & Black = flase
+\end{cases} +
+\begin{cases}
+\beta_2 & Female = true\\
+\beta_2 & Female = false
+\end{cases}
++ \epsilon
+$$
+
+## m
+
+$\% \Delta = \frac{New - Old}{Old}$
+
+$f(x) = log(x) \implies f^\prime(x) = \frac{1}{x}$
+$\frac{\text{d} f(x)}{\text{d}x} = \frac{1}{x}$
+$\text{d} f(x) = \frac{\text{d}x}{x}$
+
+$e^D = \frac{\% \Delta Q}{\% \Delta P}$
+
+$y = e^{\alpha + \epsilon} L^{\beta_1} K^{\beta_2}$
+$log(y) = \alpha + log(L)\beta_1 + \log(K)\beta_2 + \epsilon$
+
+## a
+$SS_{tot} = \sum_{i=1}^n(y_i - \bar{y})^2$
+
+$\text{V}[y] = \frac{1}{n}SS_{tot}$
+
+$SS_{tot} = SS_{reg} + SS_{res}$
+
+$R^2 = \frac{SS_{tot} - SS_{res}}{SS_{tot}}$
+$R^2 = \frac{SS_{reg}}{SS_{tot}}$
+$R^2 = \frac{\frac{1}{n}SS_{reg}}{\frac{1}{n}SS_{tot}}$
+
+
+## h
+
+$H_0: \beta_i = \beta_0$
+
+$H_a: \beta_i \neq \beta_0$
+
+
+$t = \frac{\hat{\beta_i} - \beta_0}{\text{S}[\hat{\beta_i}]} \sim T(n-(p+1))$
+
+$H_0: \beta_1 = \beta_2 = ... = \beta_p = 0$
+
+$H_a: \beta_j \neq 0 \text{ for at least one } j$
+
+$F = \frac{(SS_{tot} - SS_{res})/p}{RSS/[n - (p + 1)]} \sim F(p, n-(p+1))$
+
+$\text{E}[ \epsilon |X] = 0$ $\text{V}[\epsilon] = \sigma^2$ $cov(\epsilon_i, \epsilon_j) = 0$ $\forall i \neq j$

@@ -1,0 +1,174 @@
+---
+title: "R Markdown Basics"
+author: "Julian"
+date: "2020 August 5"
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Section 1
+***
+## This will one.one
+### Not 1.1.2
+#### Not in the table of contents
+
+
+# R Markdown Basics
+********************************************************************
+Here are some fundamentals to writing in R Markdown.
+
+## Writing text
+********************************************************************
+This is how to write text in R Markdown.
+Notice writing on the next line stays in the same paragraph.
+
+This is how you start a new paragraph.
+Wrap your words in a \* to get *italics*.
+Using two \*s will produce a **boldface**.
+
+There are other things we can do, like making lists.
+
+1. Item 1
+2. Item 2
+   b. Notice how we had to align within the R Markdown code
+      - You can choose whether you use numbers or letters, but R Markdown chooses the symbols for you :(
+
+This is how we reference inline code like `R`'s base function `plot`, which is not as pretty as `ggplot2`'s function `ggplot`.
+
+To write math, we can use some limited `latex` features.
+Like if we wanted to show a regression formula inline:
+$y_i = \alpha + x_i \beta + \epsilon_i$.
+Alternatively, f we have important math like the geometric series identity, we can make it stand out:
+$$
+2^2 = 4\\
+\begin{align*}
+  \sum_{n=0}^\infty ar^n & = a \left( \frac{1}{1-r} \right)\\
+  & = \frac{a}{1-r} \\
+  & = \text{for } |r| < 1
+\end{align*}
+$$
+
+### Hyperlinks
+
+If we want to link sections, we do this [Section 1].
+Or if we need to link a website, we do this while making sure to include https:
+A really useful [resource](https:/www.bookdown.org/yihui/rmarkdown).
+
+
+This is how include images in our markdown:
+![XKCD is teh best!](linear_regression_2x.png)
+
+
+## Code chunks
+********************************************************************
+Here is the basics to writing code chunks.
+
+```{r hello}
+print('Hello world!')
+```
+
+Things we can specify in our code chunks:
+
+- `include` - whether to be included in the document
+- `echo` - display the code
+- `results` - display the output of the code
+- `messages` - display messages from functions (if they have them)
+- `warnings` - display
+
+
+# An Example Assignment
+********************************************************************
+We must do the following:
+
+1. Load ggplot2
+2. load in gampmind_2007
+3. Produce a correlation matrix
+4. obtain mean and standard deviation of America's GDPc
+5. Summary stats of life expectancy for countries with GDPc less than $10,000
+6. Replicate plot from the last lecture
+
+## Load in ggplot2 and gampinder_2007
+********************************************************************
+```{r preliminary setup, include = FALSE}
+library(ggplot2)
+gm = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/gapminder_2007.csv')
+```
+
+Done, but I am not going to show you! Muwahahahahaha
+
+## Produce Three Sets of Statistics
+********************************************************************
+Here is a correlation matrix of GDP per capita, life expectancy, and population.
+```{r cor mat, echo = FALSE}
+cor(gm[, c('gdpPercap', 'lifeExp', 'pop')])
+```
+
+Here is the mean and standard deviation of the America's GDP per capita.
+```{r m sd Americas}
+americas = gm[gm$continent == 'Americas', ]
+m = mean(americas$gdpPercap)
+m = round(m, 2)
+s = round(sd(gm[gm$continent == 'Americas', 'gdpPercap']), 2)
+print(paste0("Americas' mean: ", m))
+print(paste("Americas' standard deviation: ", s))
+```
+
+And finally here are the summary statistics of life expectancy for countries with less than $10,000 GDP per capita.
+```{r poor stats}
+summary(gm[gm$gdpPercap < 10000, 'lifeExp'])
+```
+
+## Replicate Last Lectures Plot
+********************************************************************
+Here is the plot that we have already made, but you are making us make again.
+```{r eda, echo = FALSE, fig.width = 8, fig.height = 4.5}
+ggplot(gm, aes(x = gdpPercap, y = lifeExp, color = continent, size = pop)) + 
+  geom_point() +
+  scale_size_continuous(guide = 'none') +
+  scale_color_discrete(name = 'Continent') +
+  theme_classic() +
+  labs(x = 'GDP per Capita (USD)', y = 'Life Expectancy (years)', title = 'GDPc vs. Life Expectancy') +
+  theme(text = element_text(size = 20))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

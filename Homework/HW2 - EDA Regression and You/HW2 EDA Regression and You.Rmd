@@ -1,0 +1,311 @@
+---
+title: "Homework 2 - EDA, Regression, and You"
+author: "Applied Machine Learning in Economics"
+date: "Fall 2020"
+output: 
+  html_document:
+    toc: yes       # table of contents
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Please submit as a print-to-pdf of the knitted html document as `HW3 firstname lastname.pdf`.
+Put you answers inside appropriate section headers in your document.
+Ensure your first and last name is in the document title area. 
+
+****************************************
+
+This homework is broken up into two sections: theory and applications.
+You firstly get to show the bias-variance tradeoff.
+This is an excellent interview question, so you should know it.
+The second is that the conditional expectation of the OLS estimator is the population coefficient.
+It's important to examine the theory to understand what you are doing before diving into the data.
+Finally, we will dive into the data.
+
+# Theory
+***********************************************************************************************
+
+Do all math by hand and insert them into the homework using the `![]("name of file.jpeg/png")` command.
+Place all images inside of the folder where your markdown script is saved.
+
+## [20 points] Bias-Variance Tradeoff
+***********************************************************************************************
+
+Start from $E[e_i^2]$ and explain what you are doing each step.
+Points are awarded for the explanation, not the math.
+If something is zero, tell me why, even if you think it is obvious.
+Show me you know what you are doing.
+You are welcome to drop subscripts and $(\cdot)$.
+
+
+Ingredients:
+
+1. $y_i = \hat{f}(x_i) + e_i$
+2. $y_i = f(x_i) + \epsilon_i$
+3. $E[f(x_i)] = f(x_i)$
+4. $E[E[\hat{f}(x_i)]] = E[\hat{f}(x_i)] = E[\hat{f}(x_i)]$
+5. $E[\epsilon_i] = 0$
+6. $var[\hat{f}(x_i)] = E[(\hat{f}(x_i) - E[\hat{f}(x_i)])^2] = E[\hat{f}(x_i)^2] - E[\hat{f}(x_i)]^2]$
+7. $cov(\hat{f}(x_i), \epsilon_i) = E[(\hat{f}(x_i) - E[\hat{f}(x_i)])(\epsilon_i - E[\epsilon_i])] = 0$ by independence of $\hat{f}$ and $\epsilon$
+
+Outline:
+
+$$
+\begin{align*}
+  E[e_i^2] & = E[(y-\hat{f})^2]\\
+  & \text{plug in (1)}\\
+  & = E[(f + \epsilon - \hat{f})^2]\\
+  & \text{plug in (2)} \\
+  & = E[(f + \epsilon - \hat{f} + E[\hat{f}] - E[\hat{f}])^2]\\
+  & \text{added zero} \\
+  & \dots\\
+  & = bias(\hat{f})^2 + var[\hat{f}] + \sigma^2 
+\end{align*}
+$$
+
+
+## [15 points] Unbiased of SLR Estimator
+***********************************************************************************************
+
+Show $E[\hat{\beta}|X] = \beta$.
+Much like the previous problem, insert pictures of handwritten math. 
+Explain each line what you are doing and why things cancel out.
+
+Ingredients
+
+1. $y_i = \alpha + x_i\beta  + \epsilon_i$
+2. $\bar{y} = \alpha + \bar{x}\beta$
+3. $E[h(x)|x] = h(x)$ for any function $h(x)$
+4. $E[\epsilon|X] = 0$
+
+
+Outline:
+$$
+\begin{align*}
+  \hat{\beta} & = \frac{\sum_{i=1}^n(x_i - \bar{x})(y_i - \bar{y})}{\sum_{i=1}^n(x_i - \bar{x})^2}\\
+  & \dots\\
+  E[\hat{\beta}|x] & = \beta 
+\end{align*}
+$$
+
+
+
+
+
+# Applications
+***********************************************************************************************
+
+Load in the homework dataset as a tibble and any necessary packages. 
+You don't need to show me this.
+
+```{r, include = FALSE}
+library(tidyverse)
+cps = read.csv("C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data/hw data.csv") %>% as_tibble
+```
+
+## EDA
+***********************************************************************************************
+
+### [10 points] $y$ Median vs Mean
+
+What are the
+
+- **[3 points]** median of total family income
+- **[3 points]** and mean of total family income
+
+```{r, include = FALSE}
+median(cps$ftotval)
+mean(cps$ftotval)
+```
+
+Based upon the difference between mean and median, do you think this is a left or right skewed distribution?
+
+- **[4 points]** 
+
+```{r, include = FALSE, results = FALSE}
+'Right Skewed'
+```
+
+### [10 points] $y$ Histogram
+Produce a histogram of the total family income variable using your favorite theme
+
+- **[1 point]** in ggplot
+- **[1 point]** with axis labels, a title,
+- **[1 point]** and text size of 20
+```{r, include = FALSE, echo = FALSE}
+ggplot(cps, aes(x = ftotval)) +
+  geom_histogram() +
+  labs(x = 'Total Family Income', title = 'Total Family Income Histogram') +
+  theme_dark() +
+  theme(text = element_text(size = 20))
+```
+
+Produce a histogram of log(total family income)
+
+- **[1 point]** in ggplot
+- **[1 point]** with axis labels, a title,
+- **[1 point]** and text size of 20
+```{r, include = FALSE, echo = FALSE}
+ggplot(cps, aes(x = log(ftotval))) +
+  geom_histogram() +
+  labs(x = 'log(Total Family Income)', title = 'Total Family Income Histogram') +
+  theme_classic() +
+  theme(text = element_text(size = 20))
+```
+
+**[4 points]** Based upon the histograms, should we use a log transformation or the raw data?
+*for the rest of this assignment, I will refer to your choice as* $y$.
+
+```{r, include = FALSE, results = FALSE}
+'log transformation'
+```
+
+### [10 points] Covariate Plots
+
+
+#### Age vs $y$
+Produce a binned scatter plot of age and $y$.
+
+- **[1 point]** in ggplot
+- **[1 point]** with axis labels, a title,
+- **[1 point]** and text size of 20
+```{r, include = FALSE}
+ggplot(cps, aes(x = age, y = log(ftotval))) +
+  stat_summary_bin(bins = 20, fun = mean) +
+  labs(x = 'Age', y = 'log(Total Family Income)', title = 'Total Family Income vs. Age')+
+  theme(text = element_text(size = 20))
+```
+**[3 points]** Based upon the graph, what is the lowest order polynomial that seems appropriate for the age variable?
+
+```{r, include = FALSE, results = FALSE}
+'Second order polynomial'
+```
+
+#### Degree vs $y$
+Make a violin plot of the degree variable vs $y$
+
+- **[1 point]** in ggplot
+- **[1 point]** with axis labels, a title,
+- **[1 point]** fill set to degree,
+- **[1 point]** and text size of 20
+
+First, run this command to order the legend
+```{r}
+cps$degree = factor(cps$degree, levels = c('hs', 'sc', 'ba'))
+```
+
+```{r, include = FALSE}
+ggplot(cps, aes(x = degree, y = log(ftotval), fill = degree)) +
+  geom_violin() +
+  labs(x = 'Age', y = 'log(Total Family Income)', title = 'Total Family Income vs. Age')+
+  theme(text = element_text(size = 20))
+```
+
+### [10 points] Train-Test Data
+Set the seed to 490.
+Follow the steps outlined in the Regression Fundamentals II lecture to split the data so the train data is 80% and the test is the remaining observations.
+
+Have the code output `train` and `test` as tibbles. **2.5 points** for correct dimensions and **2.5 points** for matching output.
+
+```{r, include = FALSE}
+set.seed(490)
+nr = dim(cps)[1]
+
+train_i = sample(1:nr, nr*0.8)
+test_i  = setdiff(1:nr, train_i)
+
+train = cps[train_i, ]
+test  = cps[test_i, ]
+
+train
+test
+```
+
+
+### [10 points] Backward selection
+
+Perform backward selection on the train data as outline on page 79 on our textbook. 
+Set your criteria of 5% significance.
+Only show the `summary` from the `lm` command for the final selected model.
+
+Perform the following for the starting model:
+
+- log total family income
+- log real gdp capita
+- log `occwge`
+- second order polynomial of `age`
+- interact `anykids` with `female`
+- no transformations for the remaining variables
+- omit `occ`
+
+**[5 points]** for correct transfomations in final fitted model
+
+**[5 points]** for summary of final fitted with coefficients at approriate significance level
+
+```{r, include = FALSE}
+fit1 = lm(log(ftotval) ~ lf + degree + poly(age,2) + female*anykids + hispan + race + renter + health + rgdp_growth + log(rgdpc) + hpi + coll_share + urate + log(occwage), train)
+# summary(fit1)
+
+fit2 = lm(log(ftotval) ~ lf + degree + poly(age,2) + female*anykids + hispan + race + renter + health + rgdp_growth + log(rgdpc) + hpi + urate + log(occwage), train)
+summary(fit2)
+
+```
+
+### [10 points] Interpretation
+
+1. **[6 points]** Interpret the coefficient on `log(rgdpc)`.
+```{r, include = FALSE, results = FALSE}
+'A one percent increase in state-level real gdp per capita is associate with a 0.33 percent increase in total family income.'
+```
+2. **[2 points]** What is this kind of coefficient called (hint: see the end of Regression Fundamentals I)?
+
+```{r, include = FALSE, results = FALSE}
+'An elasticity.'
+```
+3. **[2 points]** What is the baseline race?
+
+```{r, include = FALSE, results = FALSE}
+'Asian.'
+```
+
+### [5 points] Prediction
+Calculate the MSE on the test data as outlined in the Regression Fundamentals II lecture.
+
+__*points awarded for functional form*__
+```{r, include = FALSE}
+yhat = predict(fit2, test)
+
+(  mse = sum((log(test$ftotval) - yhat)^2)/length(yhat)  )
+```
+
+
+### [10 bonus points] Best Performing Model
+
+The student(s) who produce the smallest MSE from a model trained on the `train` data and tested on `test` will receive an additional 10 bonus points on this assignment.
+You must use `lm`.
+Set $y$ as the log of total family income.
+You may use any functional form of the covariates
+
+You must show your the `lm` command for final model on `train`, followed by `dim(train)`, the prediction, the MSE formula, and finally the command `signif(mse, 10)` all in one code chunk.
+Happy analyzing!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

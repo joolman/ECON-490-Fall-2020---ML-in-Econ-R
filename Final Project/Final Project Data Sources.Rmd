@@ -1,0 +1,83 @@
+---
+title: "Final Project Data Sources"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Start with your research question first. 
+Then come to this document for data resources. 
+The datasets below are merely suggestions. 
+You are welcome to choose data from a source not listed. You must have at least 1,000 observations and 8 covariates.
+
+You will need to create a free account at some websites to download their data.
+
+Data libraries:
+
+1. IPUMS (integrated public use microdata)
+   a. https://ipums.org/
+   b. Census
+   c. CPS
+   d. International
+   e. Development
+   f. Environment
+   g. Time Use
+   h. Health
+   i. Higher Education
+2. NBER Data Library
+   a. http://data.nber.org/data/
+   b. Macro
+   c. Industrial organization
+   d. International finance and trade
+   e. Individual-level
+   f. Healthcare
+   g. Demographic/vital statistics
+   h. Patents
+   i. A massive "OTHER" category
+3. AEA RFE (American Economic Association Resource For Economists on the internet)
+   a. https://www.aeaweb.org/rfe/showCat.php?cat_id=2
+4. Kaggle
+   a. https://www.kaggle.com/ 
+   b. A data science website with data, projects, and competitions
+
+Macro:
+
+1. Macro History
+   a. http://www.macrohistory.net/data/
+   b. Yearly from 1870 onwards for 17 countries
+2. Census BDS (Business Dynamics Statistics)
+   a. https://www.census.gov/programs-surveys/bds.html
+   b. Information on firm and employment dynamics
+   c. Use legacy tables for more data
+
+Micro:
+
+1. BLS NLSY (National Longitudinal Survey of Youths)
+   a. https://www.bls.gov/cex/pumd.htm
+   b. A panel of ~10,000 individuals from teenage to adulthood
+   c. Two primary surveys: 1979 and 1997
+   d. A BOATLOAD of covariates (this could be a blessing or a curse)
+2. BLS CEX (Consumer Expenditure Survey)
+   a. https://www.bls.gov/cex/pumd.htm
+   b. Tracks individual’s consumption patterns
+   c. This is what is used to calculate inflation statistics
+3. Stanford Open Policing Project
+   a. https://openpolicing.stanford.edu/
+   b. Traffic stops data
+4. COVID-19 Data (US and Global)
+   a. https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data
+   b. Daily data that matches JHU map
+
+Finance:
+
+1. Yahoo Finance
+   a. Google “yahoo finance” with the series you want > click historical data > choose interval > download
+   b. Daily exchange rates for many countries to USD
+   c. Daily stock market indexes for various countries
+
+Natural Resource
+
+1. U.S. Energy Information Administration
+   a. https://www.eia.gov/ under sources
+   b. Oil, coal, renewables, consumption, energy output etc.

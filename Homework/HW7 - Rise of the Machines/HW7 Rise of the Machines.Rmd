@@ -1,0 +1,265 @@
+---
+title: "Homework 7: Rise of the Machines"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+
+**************
+
+**************
+
+**************
+
+Please submit as a print-to-pdf of the knitted html document as `HW6 firstname lastname.pdf`.
+Put you answers inside appropriate section headers in your document.
+Ensure your first and last name is in the document title area.
+
+Please look through your document and fix functions that span beyond the page width.
+
+**************
+
+**************
+
+**************
+
+
+**WARNING** This homework will take a while to knit.
+
+**20 point deduction** if you do not knit on the entire dataset.
+
+```{r}
+tic = proc.time()
+```
+
+# Theory
+********************************************
+
+## [10 Points] Maximal Margin Classifier Part 1
+***************************
+
+How does a maximal margin classifier fit in data?
+```{r, include = FALSE}
+# Possible responses:
+
+# It fits a hyperplane between the classes of the data 
+# "Widest street" between the data
+# "hard margin classifier"
+```
+
+## [10 Points] Maximal Margin Classifier Part 2
+***************************
+
+When does a maximal margin classifier fail?
+```{r, include = FALSE}
+# When the data are non-separable
+```
+
+## [10 Points] Support Vector Classifier
+******************************
+
+**[5 points]** Part 1: How does a support vector classifier address the limitations of the maximal margin classifier?
+```{r, include = FALSE}
+# Possible responses
+
+# It allows for margin violations
+# "Soft Margin Classifier"
+```
+
+
+**[5 points]** Part 2: How does the $C$ parameter affect the BV tradeoff?
+```{r, include = FALSE}
+# As C decreases, the bias decreases and the variance increases and vice versa.
+```
+
+## [10 Points] Support Vector Machines
+****************************
+
+SVMs are a generalization of maximal margin classifiers and support vector classifiers.
+Answer the following questions by identifying the correct possible values of $C$ and correct type of kernel.
+
+**[5 points]** Part 1: Using a SVM, how do you obtain a maximal margin classifier from $C$ and the kernel?
+```{r, include = FALSE}
+# Set C = 0
+# Use a linear kernel
+```
+
+**[5 points]** Part 2: Using a SVM, how do you obtain a support vector classifier from $C$ and the kernel?
+```{r, include = FALSE}
+# Set C >= 0
+# Use a linear kernel
+```
+
+
+## [10 Points] Multiple Classes
+***************************************
+
+Using an SVM to predict 8 classes...
+
+**[5 points]** Part 1: If we are using one vs. one classification, how many models are required to make to make a prediction?
+```{r, include = FALSE}
+# Either
+choose(8, 2)
+# or
+8*(8-1)/2
+```
+
+**[5 points]** Part 2: If we are using one vs. all classification, how many models are required to make to make a prediction?
+```{r, include = FALSE}
+8
+```
+
+## [10 Points] Scale
+************************************
+
+**[5 points]** Part 1: Does the scale of our variables influence the fitted SVM model?
+```{r, include = FALSE}
+# Yep.
+```
+
+**[5 points]** Part 2: If our variable is $x$ with a mean $\bar{x}$ and standard deviation $\hat{\sigma}_x$, write the formula to obtain the standardized version of our variable ($\tilde{x}$) using latex. 
+
+*Hint:* `\frac{}{}`. 
+
+
+
+
+# Application
+*****************************
+
+Excellent! Now that we spent all of that time discussing SVM classification, I think it is only fair if we use SVM for a regression problem.
+For the sake of having the code not take forever to execute, we are going to look at 30 to 35 year olds.
+
+
+By now, I hope you know how to setup the data, so copy and paste this code (or if you are using the template, just don't change               anything).
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(kernlab)
+set.seed(490)
+
+cps = read.csv("C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data/hw data.csv")
+cps = cps %>% 
+  mutate(id   = rownames(cps)) %>%
+  filter(age %in% c(30:35))
+
+train = sample_frac(cps, 0.50) 
+test  = anti_join(cps, train, by = "id")
+
+f = log(ftotval) ~ degree + age + female + anykids + race + rgdpc + hpi + coll_share
+```
+
+
+we are not going to use a transformation of any of the RHS variables in the hopes that the kernel will be able to handle them. 
+Also notice that we are using a subset of all variables.
+
+
+## [10 Points] Linear Kernel
+****************************
+Using 5-fold cross-validation via `ksvm()`, fit a linear kernal over a grid of $C \in \{0.1, 1\}$ and $\epsilon \in \{0.1, 1\}$ AND display their output.
+Use the same object naming structure as the lecture.
+
+**[2 points]** for each model
+```{r linear, include = FALSE}
+(  fit_l_0_0 = ksvm(f, train, C = 0.1, epsilon = 0.1, kernel = 'vanilladot', cross = 5)  )
+(  fit_l_0_1 = ksvm(f, train, C = 0.1, epsilon = 1, kernel = 'vanilladot', cross = 5)  )
+(  fit_l_1_0 = ksvm(f, train, C = 1, epsilon = 0.1, kernel = 'vanilladot', cross = 5)  )
+(  fit_l_1_1 = ksvm(f, train, C = 1, epsilon = 1, kernel = 'vanilladot', cross = 5)  )
+```
+**[2 points]** which model with which parameters performs best? How do you know?
+```{r, include = FALSE}
+# 1 point
+# The model with C = epsilon = 1
+
+# 1 point
+# it has the lowest cross-validation error
+```
+
+
+## [10 Points] Polynomial Kernel
+*****************************
+Using $C = 0.4$ and $\epsilon = 0.90$, fit a second and a third order polynomial kernel SVM using 5-fold cross-validation.
+Follow the object naming structure as the lecture.
+Print the output.
+
+**[4 points]** each. **-1 point** for each misspecified parameter.
+
+```{r poly, include = FALSE}
+(  fit_p_2 = ksvm(f, train, C = 0.4, epsilon = 0.90, kernel = 'polydot', kpar = list(degree = 2), cross = 5)  )
+(  fit_p_3 = ksvm(f, train, C = 0.4, epsilon = 0.90, kernel = 'polydot', kpar = list(degree = 3), cross = 5)  )
+```
+
+**[2 points]** Which model performs best? How do you know?
+```{r, include = FALSE}
+# 1 point
+# The second order polynomial performs the best
+
+# 1 point
+# The lowest cross-validation error
+```
+
+
+## [10 Points] Radial Kernel
+*****************************
+Using $C = 0.4$ and $\epsilon = 0.90$, fit a radial kernel SVM using 5-fold cross-validation over the values $\sigma \in \{0.1, 0.5\}$ using 5-fold cross-validation.
+Print the output.
+
+**[4 points]** each. **-1 point** for each misspecified parameter.
+
+```{r radial, include = FALSE}
+(  fit_r_1 = ksvm(f, train, C = 0.4, epsilon = 0.90, kernel = 'rbfdot', kpars = list(sigma = 0.1), cross = 5)  )
+(  fit_r_1 = ksvm(f, train, C = 0.4, epsilon = 0.90, kernel = 'rbfdot', kpars = list(sigma = 0.5), cross = 5)  )
+```
+
+**[2 points]** which model performs best?
+```{r, include = FALSE}
+# the one with sigma = 0.1
+```
+
+
+
+## [10 Points] Comparison
+************************************
+**[1 point per model]** Refit the best performing models from the three sections above on the entire training data.
+
+```{r refit, include = FALSE}
+fit_l = ksvm(f, train, C = 1, epsilon = 1, kernel = 'vanilladot')
+fit_p = ksvm(f, train, C = 0.4, epsilon = 0.9, kernel = 'polydot', kpar = list(degree = 2))
+fit_r = ksvm(f, train, C = 0.4, epsilon = 0.9, kernel = 'rbfdot', kpar = list(sigma = 0.1))
+```
+
+**[1 point per MSE]** For the refitted models, produce and print their test MSE.
+```{r MSE, include = FALSE}
+yhat_l = predict(fit_l, test)
+yhat_p = predict(fit_p, test)
+yhat_r = predict(fit_r, test)
+
+y_test = log(test$ftotval)
+
+mse_l = mean((yhat_l - y_test)^2)
+mse_p = mean((yhat_p - y_test)^2)
+mse_r = mean((yhat_r - y_test)^2)
+
+mse_l; mse_p; mse_r
+```
+
+**[4 points]** Given these MSEs, which model would you choose?
+```{r, include = FALSE}
+# The radial kernel.
+```
+
+
+
+
+
+
+```{r}
+(proc.time() - tic)/60
+```

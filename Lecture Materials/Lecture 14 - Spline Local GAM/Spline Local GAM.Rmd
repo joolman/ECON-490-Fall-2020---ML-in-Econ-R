@@ -1,0 +1,167 @@
+---
+title: "Splines, Local Regression, and GAMs"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+
+We already know how to use polynomials in `R`.
+For this lecture, we are largely going to demonstrate how use each feature.
+We are also going to demonstrate how to set up a process for selecting different models.
+This time around, we will try to predict whether a house has more than two baths using the `continuous` data.
+
+Cross-validation can be used to select the degrees of polynomials, which we have already shown in the cross-validation lecture.
+However, we can select the degrees of freedom of a spline with CV. 
+This is omitted. 
+View the available models in the `caret` package.
+
+These models are particularly useful when we have nonlinearities in our data.
+
+# Setup
+***
+
+```{r}
+source('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/useful.R')
+library(gam)
+
+ahs = load_lecture('continuous')
+set.seed(490)
+
+train = sample_frac(ahs, size = 0.75)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+# Polynomial Step Functions
+***
+Step polynomials don't have to be used exclusively on time. 
+We can use them on any variable if we think it is appropriate.
+The code below is purely for demonstration purposes.
+I don't think it makes any sense at all to run this model, even though most of the coefficients are mildly significant.
+
+```{r}
+med_cost  = median(ahs$cost)
+
+fit1 = glm(I(baths > 2) ~ poly(cost, 2)*I(cost >= med_cost),
+    data = train, family = 'binomial')
+summary(fit1)
+```
+
+
+# Splines
+***
+Moving right along, here are splines.
+Splines are implemented by wrapping a variable with either `bs()` for a regular spline or `ns()` for a natural spline in an `lm()` `formula`. 
+
+```{r}
+fit2 = glm(I(baths > 2) ~ bs(cost, df = 6) + ns(value, df = 6) + beds, data = train, family = 'binomial')
+
+error( (predict(fit2, test, type = 'response') > 0.5),
+     (test$baths > 2) )
+
+```
+Not a great performing model. 
+We could probably do better.
+
+Notice that instead specified the degrees of freedom instead of the number of knots.
+There is not an option to specify the knots.
+
+Natural cubic splines and basis splines have different numbers of knots given the same degrees of freedom. 
+The natural cubic spline will have more knots for the same degrees of freedom, because it has the additional end points constraint that "frees up" four degrees of freedom.
+
+```{r}
+
+dim(bs(train$cost, df = 6))
+attr(bs(train$cost, df = 6), 'knots')
+
+dim(ns(train$cost, df = 6))
+attr(ns(train$cost, df = 6), 'knots')
+```
+
+
+# Local Regression
+***
+
+In local regression, we need to specify how much of the model we want to take into consideration.
+Using `loess` from the base package `stats`, we get the following treating `baths` as a continuous variable:
+```{r}
+fit_lr = loess(baths ~ cost + value + beds, data = train, span = 0.6)
+summary(fit_lr)
+predict(fit_lr, test)[1:3]
+
+```
+Using this model, we could happily predict away on the `test` data.
+
+We can also use `lo()` from the `gam` package.
+```{r}
+fit_lr2 = lm(baths ~ lo(cost, value, beds, span = 0.6, degree = 2), data = train)
+predict(fit_lr2, test)[1:3]
+```
+
+These estimated values are slightly different due to choices in the smoothing feature of local regression made when the packages were written.
+
+# Generalized Additive Models
+***
+
+Okay, time for business. 
+Now that we have seen how to implement a spline or local regression, let's demonstrate how to fit a GAM and compare different models.
+
+```{r}
+f = NULL # initializing an empty object so we can turn it into a list
+f[[1]] = I(baths > 2) ~ cost + value + beds
+f[[2]] = I(baths > 2) ~ cost + ns(value, df = 4) + beds
+f[[3]] = I(baths > 2) ~ lo(cost, value, span = 0.8) + beds
+
+errors = rep(NaN, length(f))
+
+for(i in 1:length(f)){
+  fit = gam(f[[i]], data = train, family = 'binomial')
+  yhat = (predict(fit, test) > 0) # because using log-odds
+  y = (test$baths > 2)
+  errors[i] = error(yhat, y)
+}
+
+
+errors; which.min(errors)
+```
+
+From what I understand from the documentation, local regression takes up a larger amount of memory when the number of observations becomes larger. 
+I believe these warning messages are from the backend functions allocating some of your RAM up to a limit that was not enough to fit the model. 
+Weird...
+
+Regardless, this is how you fit a GAM model!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,41 @@
+---
+title: "Lecture 5: Machine Learning Fundamentals"
+author: "ECON 490: Applied ML in Econ"
+date: "Fall 2020"
+output: 
+  powerpoint_presentation:
+    reference_doc: ECON_490.potx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Math
+
+$Y = f(X) + \epsilon$
+$Y_i = f(X_i) + \epsilon_i$
+
+$X = (X_1, X_2, ... X_p)$
+
+E$[\epsilon] = 0 \sigma^2(X)$
+
+$\widehat{f(X)}$
+
+
+$\implies$ E$[\epsilon] \rightarrow \frac{1}{n}\sum_{i=1}^n \epsilon_i = \bar{\epsilon} = 0$
+
+V$[\epsilon] \rightarrow \frac{1}{n-1} \sum_{i=1}^n (\epsilon_i - \bar{\epsilon})^2 = \widehat{\sigma^2(X)}$
+
+
+$\widehat{f(X)} = \text{argmin } \epsilon^2 = \text{argmin } (Y - f(X))^2$
+
+$\exists y_i$
+
+## Math 2
+
+$\text{MSE} = \frac{1}{n}\sum_{i=1}^n (y_i - \widehat{f(X_i)})^2$
+
+$\text{Error Rate} = \frac{1}{n} \sum_{i=1}^n I(y_i \neq \widehat{y_i})$
+
+$E[e_i^2] = \text{Bias}[\widehat{f(X)}]^2 + \text{V}[\widehat{f(X)}] + \text{V}[\epsilon]$

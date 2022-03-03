@@ -1,0 +1,111 @@
+---
+title: "Longitudinal Clustering"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup
+*****************
+
+Load the libraries `tidyverse`, `cluster`, and `readxl`. Set the seed to 490. Using `read_excel()`, load the data specifying the argument `sheet = 2`. 
+
+Using one line of code `select()` variables `country`, `year`, `gdp`, and `exports`, omit any NAs, `mutate()` `exports_per_gdp = exports/gdp`, and `filter()` years strictly less than 1885, not `%in%` `1914:1923` and `1940:1947`.
+
+
+
+```{r, message = FALSE, warning = FALSE, include = TRUE}
+library(tidyverse)
+library(cluster)
+library(readxl)
+set.seed(490)
+
+macro = read_excel('C:/Users/johnj/Documents/Data/macro history/JSTdatasetR4.xlsx', sheet = 2)
+
+mh = macro %>% 
+  select(country, year, gdp, exports) %>%
+  na.omit %>%
+  mutate(exports_per_gdp = exports/gdp) %>%
+  filter(year >= 1885 & !year %in% c(1914:1923, 1940:1947))
+```
+
+# EDA
+***********************
+
+Using `ggplot2`, plot the exports per GDP grouped by country. Which country and year is the maximum?
+
+```{r, include = TRUE}
+ggplot(mh, aes(x = year, y = exports_per_gdp, group = country)) +
+  geom_line()
+
+mh[which.max(mh$exports_per_gdp), ]
+```
+
+# `clusGap()`
+**********************
+
+Pivot the data wider, specifying `names_from = year`, `values_from = exports_per_gdp`, and `id_cols = country`.
+
+Using `clusGap()`, specify the clustering function `pam` and `K.max = 8`.
+Plot the output using `plot()`.
+Determine which is the identified `globalSEmax` number of clusters.
+
+```{r, include = TRUE}
+clst = mh %>%
+  pivot_wider(names_from = year, values_from = exports_per_gdp, id_cols = country)
+
+cl = clusGap(clst[, -1], FUN = pam, K.max = 8)
+
+plot(cl)
+
+print(cl, method = 'globalSEmax')
+```
+
+# Final Plot 
+***********************
+
+Refit the model using the identified number of clusters using `pam()`.
+Identify the labels for each country.
+Reproduce the original plot with colors of exports per GDP over countries colored by their cluster.
+
+Print the labels `arrange()`d by group.
+
+```{r, include = TRUE}
+fit = pam(clst[, -1], 4)
+lbls = data.frame(country = clst$country, group = fit$clustering)
+
+plt = left_join(mh, lbls)
+
+ggplot(plt, aes(x = year, y = exports_per_gdp, color = as.factor(group), group = country)) +
+  geom_line()
+
+lbls %>% arrange(group)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

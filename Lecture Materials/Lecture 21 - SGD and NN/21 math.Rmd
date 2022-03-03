@@ -1,0 +1,100 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "10/30/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Loss Minimization
+
+$L(X, y; \theta)$
+
+$$MSE(X, y; \theta) = \frac{1}{n}\sum_{i=1}^n (y_i - f(X_i;\theta))^2 = \frac{1}{n}\sum_{i=1}^n (y_i - X_i^\prime\theta)^2$$
+
+# Gradient Descent Intuition
+
+$$\hat{\theta}_{t+1} = \hat{\theta}_t - \eta \nabla_\theta MSE(\theta_t)$$
+
+$$\nabla_\theta MSE(\theta) = 
+\begin{bmatrix} 
+  \frac{\partial MSE(\theta)}{\partial \theta_0}\\
+  \frac{\partial MSE(\theta)}{\partial \theta_1}\\
+  \vdots\\
+  \frac{\partial MSE(\theta)}{\partial \theta_p}\\
+\end{bmatrix} = \frac{2}{n} X^\prime(X \theta - y) $$
+
+# Univariate Example
+
+$f(x) = x^2 \implies f^\prime(x) = 2x$ 
+
+$\eta = 0.1$
+
+$x_0 = 2$
+
+$x_1 = x_0 - \eta \times 2(x_0) = 2 - 0.1\times4 = 1.6$
+$x_2 = 1.6 - 0.1 \times 2(1.6) = 1.28$
+
+
+$\eta = 10$
+
+$x_1 = 2 - 10\times 2(2) = -38$
+$x_2 = -38 - 10 \times 2(-38) = 722$
+
+
+
+# Batch gradient descent
+
+$X$
+
+$n \rightarrow \infty$
+
+
+# SGD
+
+$X$
+
+$\eta$
+
+
+# Terminology
+
+$40 \times 10 = 400$
+
+
+# NN - Hidden & Output Layer
+
+$$\sigma(z) = \frac{1}{1 + e^{-z}} \in (0,1)$$
+
+$$\text{tanh}(z) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \in (-1, 1)$$
+
+$$f(z) = \begin{cases}
+  0 & z\leq 0\\
+  z & z < 0
+\end{cases} \in[0, \infty)$$
+
+## Feedforward and Back
+
+Grab eqn from intuition
+
+$$\theta = \begin{bmatrix} W & b \end{bmatrix}$$
+$$z = XW + b$$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

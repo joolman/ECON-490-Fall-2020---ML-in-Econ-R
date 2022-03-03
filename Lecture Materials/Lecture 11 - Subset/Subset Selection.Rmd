@@ -1,0 +1,168 @@
+---
+title: "Subset Selection"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+
+We could manually run each regression, compute the performance statistic, and the store all of the results, but I am feeling pretty confident that you guys can figure out how to do that (if not, give it a go!).
+Let's just use a package.
+
+# Setup
+************************************************************
+```{r}
+library(tidyverse) # Because, of course
+library(leaps)     # subset selection
+library(caret)     # cross-validation
+
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/lecture data continuous.csv')
+```
+
+# Subset selection
+*****************************
+
+We will do all three types of subset selection: best subset selection, backward stepwise selection, and forward stepwise selection.
+
+
+## Best Subset Selection
+***************************************************
+
+Not gonna lie, I am a little intimidated for this section. 
+Hopefully our computers can handle it!
+Remember that best subset selection computes $2^p$ models, where $p$ is the number of parameters we have.
+
+To do best subsets, we will use the `regsubsets()` function from `leaps`. 
+You input the full model, just like `lm()`.
+
+```{r}
+#log(value) ~ log(cost):hoa + npeople + log(hinc) + beds + baths + log(eqvval) + lotsize + yos + condo + garage + I(bld == 'Mobile Home') + poly(math, 2) - hoa
+system.time(
+  {
+    best_fits = regsubsets(log(value) ~ log(cost)*hoa + npeople + beds*baths + log(eqvval) + lotsize + yos + garage + bld + poly(math, 2) + crime + hinf + houtf, ahs, nvmax = Inf)
+  }
+)
+summary(best_fits)
+```
+Is anyone else not bothered by the fact that we just ran a million models in less than a second?
+Perhaps because our dataset is a small one.
+Be cautious when applying to larger dataset. 
+
+So, which model should we choose?
+Since humans are visual creatures... yada, yada, yada...
+We will select our model using BIC (see recording) because it tends to favor parsimonious models.
+When using information criterions, we want the smallest value.
+How about some lazy plots/
+```{r}
+sbest = summary(best_fits)
+
+min(sbest$bic); which.min(sbest$bic)
+
+plot(sbest$bic)
+```
+Well, the best BIC is the model with 9 parameters. 
+However, according to this figure the kink is at 3 parameters. 
+Let's obtain those models.
+
+```{r}
+coef(best_fits, 3)
+coef(best_fits, 9)
+```
+
+Because we are always concerned with fitting irreducible noise, I would suggest choosing the model with only three parameters.
+However, we can be more confident with our selections in the cross-validation section.
+
+## Backward Stepwise Selection
+******************************************
+I wonder what model we will select this time!
+```{r}
+back_fits = regsubsets(log(value) ~ log(cost)*hoa + npeople + beds*baths + log(eqvval) + lotsize + yos + garage + bld + poly(math, 2) + crime + hinf + houtf, ahs, nvmax = Inf, method = 'backward')
+
+sback = summary(back_fits)
+
+min(sback$bic); which.min(sback$bic)
+
+plot(sback$bic)
+```
+
+Based upon the output, it looks like we selected the same model.
+Let's see if that is true.
+```{r}
+coef(back_fits, 3)
+coef(back_fits, 9)
+```
+We ended up with the same models!
+
+## Forward Stepwise Selection
+********************************
+```{r}
+forw_fits = regsubsets(log(value) ~ log(cost)*hoa + npeople + beds*baths + log(eqvval) + lotsize + yos + garage + bld + poly(math, 2) + crime + hinf + houtf, ahs, nvmax = Inf, method = 'forward')
+
+sforw = summary(forw_fits)
+
+min(sforw$bic); which.min(sforw$bic)
+
+plot(sforw$bic)
+```
+Few!
+I was worried I wasn’t going to be able to showcase that these techniques do select different models.
+```{r}
+coef(forw_fits, 3)
+coef(forw_fits, 10)
+```
+
+It looks like the forward selection method prefers the addition of detached single-family homes!
+
+## Discussion
+**********************************
+
+In general, there is no reason for these techniques to select the same model.
+It looks like *effectively* did here because some variables are **very** important predictors, and others don't influence a thing!
+That means when we start from either an empty model or the full model, we more or less have a ranking of parameters that are important predictors.
+You can think about this as lining up people from age 1 to 16 (one per age) by height.
+
+# Cross-Validation
+**************************************
+
+`caret` is an incredibly useful package. 
+[Here](https://topepo.github.io/caret/available-models.html) is a list of the available models that we can cross-validate.
+
+Since fitting a million models didn't take that long, let's boldly try to do 5 repeated 4-fold cross-validation of the best-subset selection.
+
+```{r}
+trControl = trainControl(method = 'repeatedcv',
+                         number = 4,
+                         repeats = 5)
+
+
+fit = train(log(value) ~ log(cost)*hoa + npeople + beds*baths + log(eqvval) + lotsize + yos + garage + bld + poly(math, 2) + crime + hinf + houtf,
+            method = 'leapSeq', # the caret version of regsubset. It is outdated
+            trControl = trControl,
+            tuneGrid = expand.grid(nvmax = 1:20),
+            data = ahs)
+
+par(mfrow = c(1,3))
+plot(fit$results$RMSE)
+plot(fit$results$Rsquared)
+plot(fit$results$MAE)
+
+fit$bestTune
+```
+The CV tells us the best subset selection model is the one with 15 parameters. 
+However, this is still quite large.
+Based upon these figures, I would choose the model with 7 parameters. 
+Yes, this is a bit subjective.
+
+
+
+
+

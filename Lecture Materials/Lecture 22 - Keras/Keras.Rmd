@@ -1,0 +1,257 @@
+---
+title: "Neural Networks in Keras"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', fig.width = 16, fig.height = 9)
+```
+
+
+`keras` is a very user-friendly wrapper for `tensorflow`. `tensorflow` is the neural network package invented by the Google Brain team, originally for `Python`.
+I hope it is obvious that it has been expanded to `R`.
+
+To get started, you need to first download Anaconda from <https://docs.anaconda.com/anaconda/install/>. 
+Anaconda is a software distribution platform for data science. 
+As you will see, it has Jupyter for `Python`, Rstudio for `R`, and VS Code for collaborations.
+Once it is physically installed on your computer, you don't have to think about it ever again.
+
+Downloading the package `keras` takes a bit more work than a regular package.
+You need to run the following code in your console:
+```{r, eval = FALSE}
+install.packages('keras')
+library(keras)
+install_keras()
+```
+This will install keras on your machine. 
+You will then need to run `library(keras)` again after the install, as the install restarts your `R` session.
+
+# Setup
+*****************
+I think it is time that we finally see if we can predict the `npeople` variable any better with a NN.
+Remember that the best we could do was an accuracy rate of just over 40%. Dismal.
+
+**VITAL** Because Keras is being evaluated via Anaconda, it is a *pain* to set up the seed. So we won't.
+You will not get the same numbers as in this document.
+
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(keras)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data discrete.csv') 
+
+train = sample_frac(ahs, 0.80) 
+test  = anti_join(ahs, train, by = 'id')
+
+f =  npeople ~ log(cost) + hoa + log(hinc) + beds + baths  + lotsize + yos + condo + garage + bld + crime + hinf + houtf + renter - 1
+```
+
+# Keras
+*******************
+Here is the `R` Keras website: <https://keras.rstudio.com/>
+
+Check out `help(package = 'keras')` for all the avialable functions.
+
+The neural network workflow in `R` using Keras requires the following steps:
+
+1. Prepare the data
+2. Define the model
+3. Compile the model
+4. Train the model
+5. Evaluate the model
+
+## Preparing the Data
+*****************************
+Keras requires the $X$ and $y$ data to be input separately. 
+Because we are predicting a categorical variable, we need to convert it to a combination of dummy variables.
+Note that this is originally a `Python` package, which means that it uses zero indexing (if you want to top left cell in a matrix named `df` in `R` you would type df[1,1]. In `Python`, you would type `df[0,0]`.
+
+For the technical convergence reasons I discussed in the previous lecture, we also need to standardize our features.
+
+
+```{r}
+x_train = model.matrix(f, train) %>% scale
+x_test  = model.matrix(f, test) %>% scale
+
+y_train = to_categorical(y = train$npeople - 1, num_classes = 3)
+y_test  = to_categorical(y = test$npeople - 1,  num_classes = 3)
+```
+
+The `to_categorical()` function is what is called a "one-hot-encoder". If you were to plot a heatmap of the first row,
+you would get only one "hot" value and $k-1$ "cold" values, which would coincide with the class of the first $y$ observation.
+```{r}
+head(y_train)
+head(train$npeople)
+```
+
+## Defining the Model
+**************************
+
+In this example, we will train a sequential feedforward multi-classification neural network.
+Sounds fancy, huh?
+Well, remember at the end of the day, it is just matrix multiplication.
+Let us use three hidden layers, with 100, 75, and 50 neurons respectively, all using ReLU activation functions.
+This follows the pyramid scheme (no pun intended) that used to be thought to be effective, but in practice models that use the same number of neurons in each hidden layer perform just as well.
+
+```{r define, message = FALSE}
+# How many input neurons?
+(n = ncol(x_train))
+
+# Initializing the model
+mod = keras_model_sequential()
+mod %>%
+  layer_dense(units = 100, activation = 'relu', input_shape = n) %>% # Hidden layer 1
+  layer_dense(units = 75, activation = 'relu') %>%                   # Hidden layer 2
+  layer_dense(units = 50, activation = 'relu') %>%                   # Hidden layer 3
+  layer_dense(units = 3, activation = 'softmax')                     # Output layer
+```
+Remember that we are perfoming a multi-class prediction problem. That is why the output layer uses a `'softmax'` activation function.
+Let's take a look at the model we have initialized.
+```{r}
+summary(mod)
+```
+Holy cow! We are estimating over 13,000 parameters! How did we get so many?!
+Well, like so:
+
+```{r}
+# Hidden Layer 1 - (18 weights + a bias)*100 neurons
+(18 + 1)*100
+
+# Hidden Layer 2 - (100 weights + a bias)*75 neurons
+(100 + 1)*75
+
+# Hidden Layer 3 - (75 weights + a bias)*50 neurons
+(75 + 1)*50
+
+# Output Layer - (50 weights + a bias)*3 neurons
+(50 + 1)*3
+
+# Grand total
+(18 + 1)*100 + (100 + 1)*75 + (75 + 1)*50 + (50 + 1)*3
+```
+
+
+## Compiling the Model
+**********************
+The next step is to compile the model with the appropriate loss function and metrics.
+We will be using a type of SGD called RMSProp. It effectively uses a running average.
+
+```{r}
+mod %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('accuracy')
+)
+```
+
+## Training the Model
+***************
+Without further ado, let's fit our first neural network! 
+Note that we can set up a validation set of size 20% of `train`.
+We can also use early stopping, but I have commented it out because a model with early stopping cannot be plotted in an R Markdown.
+
+```{r}
+history <- mod %>% fit(
+  x_train, y_train, 
+  epochs = 30, batch_size = 128, 
+  validation_split = 0.2# ,
+#  callbacks = callback_early_stopping(patience = 4)
+)
+
+# Epoch 1/30
+# 78/78 [==============================] - 1s 13ms/step - loss: 5.7386 - accuracy: 0.3717 - val_loss: 3.5766 - val_accuracy: 0.3943
+# Epoch 2/30
+# 78/78 [==============================] - 1s 8ms/step - loss: 4.0420 - accuracy: 0.3714 - val_loss: 4.3948 - val_accuracy: 0.4326
+# Epoch 3/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 3.0538 - accuracy: 0.3741 - val_loss: 3.2036 - val_accuracy: 0.3943
+# Epoch 4/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 2.2462 - accuracy: 0.3799 - val_loss: 2.3507 - val_accuracy: 0.1780
+# Epoch 5/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.6397 - accuracy: 0.3973 - val_loss: 2.0874 - val_accuracy: 0.3943
+# Epoch 6/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.3989 - accuracy: 0.3983 - val_loss: 1.5977 - val_accuracy: 0.1747
+# Epoch 7/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.1869 - accuracy: 0.4231 - val_loss: 1.0983 - val_accuracy: 0.4120
+# Epoch 8/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.1292 - accuracy: 0.4359 - val_loss: 1.0474 - val_accuracy: 0.4835
+# Epoch 9/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.0743 - accuracy: 0.4497 - val_loss: 2.1855 - val_accuracy: 0.4310
+# Epoch 10/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.0690 - accuracy: 0.4628 - val_loss: 1.0182 - val_accuracy: 0.4350
+# Epoch 11/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.0318 - accuracy: 0.4779 - val_loss: 1.0164 - val_accuracy: 0.4443
+# Epoch 12/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.0088 - accuracy: 0.4868 - val_loss: 0.9985 - val_accuracy: 0.4750
+# Epoch 13/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.0064 - accuracy: 0.5050 - val_loss: 1.0158 - val_accuracy: 0.4798
+# Epoch 14/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 1.0079 - accuracy: 0.5064 - val_loss: 1.0222 - val_accuracy: 0.4399
+# Epoch 15/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9912 - accuracy: 0.5046 - val_loss: 0.9962 - val_accuracy: 0.5186
+# Epoch 16/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9844 - accuracy: 0.5150 - val_loss: 0.9731 - val_accuracy: 0.5347
+# Epoch 17/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9809 - accuracy: 0.5178 - val_loss: 0.9466 - val_accuracy: 0.5327
+# Epoch 18/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9722 - accuracy: 0.5289 - val_loss: 0.9377 - val_accuracy: 0.5408
+# Epoch 19/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9685 - accuracy: 0.5255 - val_loss: 0.9413 - val_accuracy: 0.5327
+# Epoch 20/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9660 - accuracy: 0.5274 - val_loss: 0.9522 - val_accuracy: 0.5327
+# Epoch 21/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9645 - accuracy: 0.5300 - val_loss: 0.9824 - val_accuracy: 0.5307
+# Epoch 22/30
+# 78/78 [==============================] - 0s 5ms/step - loss: 0.9576 - accuracy: 0.5425 - val_loss: 0.9834 - val_accuracy: 0.5186
+```
+```{r}
+plot(history)
+```
+
+
+## Evaluating the Model
+***********
+So, how did we do?
+
+```{r}
+mod %>%
+  evaluate(x_test, y_test)
+```
+
+Well, it looks like we did beat our previous best!
+However, just over 50% accuracy is nothing to be excited about.
+
+At this point, we have tried *many* different models to predict this `npeople` variable. 
+We can conclude that we need to obtain better data that will have more variation in the features (x-variables).
+This is unsurprising: look how few household specific continuous variables we have:
+```{r}
+head(x_train)
+```
+We have 
+
+1. monthly housing cost
+2. household income
+3. and kind of years of schooling
+
+I am not counting `beds`, `baths`, or `lotsize` because they take on so few values. They are effectively discrete variables that we are treating as continuous.
+
+So long, and farewell `npeople`!
+
+
+
+
+
+
+
+
+
+
+
+
+
+

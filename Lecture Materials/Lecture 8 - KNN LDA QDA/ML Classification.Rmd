@@ -1,0 +1,302 @@
+---
+title: "ML Classification"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+We have done it! We have finally made it to the point in the semester where we will be talking about techniques that don't show up in the standard econometric textbook!
+
+# Preliminaries
+****************************
+Packages and data!
+```{r}
+# packages that make us cheery
+library(tidyverse)
+library(caret)   # confusionMatrix
+library(plotROC) # geom_roc()
+library(class)   # knn()
+library(MASS)    # lda(), qda()
+
+# Loading the data
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/lecture data discrete.csv')
+load('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/logistic fit.rda')
+
+# Sample-splitting
+set.seed(490)
+train = ahs %>% sample_frac(0.75)
+test = anti_join(ahs, train, by = 'id') 
+```
+
+# Diagnostics
+*****************************
+
+We have seen how to interpret two classification diagnostics.
+But how do we generate them?
+
+## Confusion Matrix
+********************************
+Recall that the confusion matrix represents the (mis)classifications from our model. 
+The diagonal elements are correct predictions and the off diagonal are incorrect predictions.
+
+Starting with the logistic regression:
+```{r}
+b_yhat = ifelse(predict(bfit, test, type = 'response') > 0.5,
+              TRUE,
+              F)
+
+confusionMatrix(as.factor(b_yhat), as.factor(test$renter))
+
+```
+This gives us a lot of information that could be useful on determining which model would be best suited for our application.
+Looking down the columns of the confusion matrix, it appears that we are better at predicting non-rented units (owned) than rented units.
+
+What about for our multinomial case?
+```{r}
+m_yhat = predict(mfit, test, type = 'class')
+confusionMatrix(m_yhat, as.factor(test$npeople))
+```
+This model does a moderately okay job predicting one occupant or two occupant units, but it really struggles with three-plus occupancy.
+It is informative to look at this table, because perhaps we are less interested in predicting that group.
+
+But if there is only one group that we are interested in, then why aren't we using binomial logistic regression on an indicator variable for said group of interest?
+
+
+## ROC
+**************************************
+The ROC curve is really only applicable for a binary response variable: a yes or no.
+You can bend the ROC curve for the $>2$ class case, but then you are comparing one group to all groups.
+The interpretation and implementation from the results are messy and convoluted.
+
+In short, ROC for binary response.
+
+```{r}
+b_yhat = predict(bfit, test, type = 'response')
+dfb = data.frame(yhat = b_yhat, y = test$renter, model = 'Logistic')
+
+ggplot(dfb, aes(m = yhat, d = y, color = model))  +
+  geom_roc(n.cuts = 10, labelround = 2) +
+  labs(title = 'Logistic ROC', x = 'False Positive Fraction', y = 'True Positive Fraction') +
+  scale_color_discrete(name = 'Model') +
+  geom_segment(aes(x = 0, y = 0, xend = 1, yend = 1), color = 'blue', linetype = 'dashed', size = 1.5)
+```
+
+From here we see that the threshold value of 0.56 appears to be doing a good job! 
+The dashed blue line would be the result if we were just randomly guessing.
+
+We can use the `ggplot` object to create an interactive plot and calculate the area under the curve (AUC).
+
+
+```{r}
+roc = ggplot(dfb, aes(m = yhat, d = y*1, color = ''))  +
+  geom_roc(n.cuts = 10, labelround = 2)  +
+  labs(title = 'Logistic ROC', x = 'False Positive Fraction', y = 'True Positive Fraction') +
+  theme(text = element_text(size = 20)) +
+  scale_color_discrete(name = 'Model')
+```
+
+Because we are in a markdown environment, the interactive plot won't knit to `.html`, but you should explore this in a regular `.R` script.
+
+Here is the code:
+`plot_interactive_roc(roc, labelround = 2)`
+
+Finally, we calculate the AUC by using a trivially simple single line of code! How convenient!
+```{r}
+calc_auc(roc)
+
+```
+That seems pretty good to me!
+But the AUC really comes in handy where we have multiple models to compare across.
+
+We could end up in a situation that easy to predict, which means all models are relatively high.
+OR, we could be in a situation that is challenging to predict, which means all models will have a low AUC.
+
+**IMPORTANT:** Whenever predicting classes, it is always a good idea to compare the performance of your model(s) to randomly guessing.
+If you aren't doing much better than just guessing one group over and over again, then you need to go back to the model selection stage.
+
+
+# KNN
+*************************
+The inputs for the `knn` function are a bit picky.
+Instead of inputting `data.frame`s (or `tibble`s), we need to put in the matrix of $X$ variables for training and testing, alongside the $y$ for training.
+
+We can obtain them as follows:
+```{r}
+x_train = model.matrix(mfit)
+x_test  = model.matrix(fm, data = test)
+y_train = train$npeople
+```
+
+We also need to specify the number of nearest neighbors we want to use.
+Let's start off with four and see what the accuracy is (accuracy = 1 - error rate).
+```{r}
+kfit = knn(x_train, x_test, y_train, 4)
+mean(kfit == test$npeople)
+```
+Not that great.
+
+Let's see if we need a different value of `k`.
+```{r}
+
+K = c(2:6, 10, 15, 20, 30, 50, 100)
+for(k in K){
+  kfit = knn(x_train, x_test, y_train, k)
+  accuracy = mean(kfit == test$npeople)
+  cat('k =', k, '   Accuracy =', accuracy, '\n')
+}
+```
+It looks like somewhere around 50 nearest neighbors produces the most accurate model.
+
+Let's save this model for comparison later on.
+```{r}
+kfit = knn(x_train, x_test, y_train, 50)
+```
+
+
+Here is another way that we can produce a confusion matrix:
+```{r}
+table(kfit, test$npeople)
+```
+# LDA
+*************************
+The function `lda` for linear discriminant analysis is a lot simpler to use; it doesn't nest the predictions inside the fit (which may be a feature you prefer).
+
+```{r}
+ldafit = lda(fm, train)
+ldafit
+```
+The output shows us the coefficients on the linear discrimination boundaries. See the textbook for more details.
+
+Now we can evaluate how this model performed.
+```{r}
+ldahat = predict(ldafit, test)
+
+# Confusion Matrix
+table(ldahat$class, test$npeople)
+
+# Accuracy
+mean(ldahat$class == test$npeople)
+```
+Looks like LDA has done slightly better than KNN.
+
+# QDA
+***************************
+QDA follows similarly. What was the difference between LDA and QDA again?
+
+```{r}
+# Fitting the model
+qdafit = qda(fm, train)
+qdafit
+
+# Predictions
+qdahat = predict(qdafit, test)
+
+# Confusion matrix
+table(qdahat$class, test$npeople)
+
+mean(qdahat$class == test$npeople)
+
+```
+How interesting! It appears that [insert the thing that makes QDA different than LDA here] produces or worse fit than LDA *and* KNN!
+Wowzaz!
+
+
+# Model Comparisons
+**********************************
+
+## Multiple classes
+For the multiclass comparisons, we must rely on a summary statistic. Let's use the error rate.
+
+```{r}
+cat('KNN error rate:', mean(kfit != test$npeople))
+cat('Multinomial error rate:', mean(predict(mfit, test, type = 'class') != test$npeople))
+cat('LDA error rate:', mean(ldahat$class != test$npeople))
+cat('QDA error rate:', mean(qdahat$class != test$npeople))
+```
+It appears the multinomial logistic regression is the best performing model!
+
+## One Class
+
+Now that we are coming back to the ROC and AUC. This will require some setup.
+
+Think about why I am doing what in the code chunk below
+
+```{r}
+#######################
+# Logistic Regression #
+#######################
+b_yhat = predict(bfit, test, type = 'response')
+dfb = data.frame(yhat = b_yhat, y = test$renter, model = 'Logistic')
+
+
+#######
+# KNN #
+#######
+x_train = model.matrix(bfit)
+x_test  = model.matrix(fb, data = test)
+y_train = train$renter
+
+kfit = knn(x_train, x_test, y_train, 4)
+mean(kfit == test$renter)
+
+K = c(2:6, 10, 15, 20, 30, 50, 100)
+for(k in K){
+  kfit = knn(x_train, x_test, y_train, k)
+  accuracy = mean(kfit == test$renter)
+  cat('k =', k, '   Accuracy =', accuracy, '\n')
+}
+
+kfit = knn(x_train, x_test, y_train, 15)
+dfk = tibble(yhat = kfit, y = test$renter, model = 'KNN')
+
+#######
+# LDA #
+#######
+ldafit = lda(fb, train)
+ldahat = predict(ldafit, test)
+
+dflda = tibble(yhat = ldahat$posterior[,2], y = test$renter, model = 'LDA')
+
+
+#######
+# QDA #
+#######
+qdafit = qda(fb, train)
+qdahat = predict(qdafit, test)
+
+dfqda = tibble(yhat = qdahat$posterior[,2], y = test$renter, model = 'QDA')
+
+#######
+# ROC #
+#######
+df = bind_rows(dfb, dflda, dfqda)
+# can't plot knn, because knn predicts classes, not probabilities
+
+(final = ggplot(df, aes(m = yhat, d = y, color = model)) +
+  geom_roc(n.cuts = 10, labelround = 2) )
+
+calc_auc(final)
+
+```
+
+LDA is in the lead!
+But how does LDA perform compared to KNN in accuracy?
+```{r}
+mean(ldahat$class == test$renter)
+mean(kfit == test$renter)
+```
+
+LDA is victorious!
+
+# Concluding Thoughts
+
+We have just shown that different techniques can outperform one another in different situations.
+To give us more of an idea of where we would expect these models to do well, read the three pages of chapter 4.5.

@@ -1,0 +1,156 @@
+---
+title: "Tree Models"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', fig.width = 16, fig.height = 9)
+```
+
+We can use tree-based models for regression and classification problems. 
+In short, these models split up our sample space (where our $X$-variables live) into rectangles.
+See Figure 8.2 in our textbook for an example.
+Each rectangle receives the same predicted value: either the mean of all $y$-variables in that rectangle if it is a regression problem or the class with the largest representation in said rectangle.
+
+
+# Setup
+****************
+First up, let's attach some packages, load a dataset, set our seed, and sample-split; the usual points of business.
+```{r}
+library(tree)
+library(tidyverse)
+set.seed(490)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data continuous.csv') %>%
+  as_tibble # for old times sake
+
+train = sample_frac(ahs, 0.5)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+
+# Classification Tree
+*********
+
+We start off with a classification tree predicting `beds`.
+In order to have the function `tree()` fit a classification tree, we need to convert the $y$-variable into a `factor`, even if the original is a `character` class.
+
+## Fitting
+*****************
+
+```{r, warning = FALSE}
+fit_tree = tree(as.factor(beds) ~ ., train)
+
+plot(fit_tree)
+text(fit_tree, pretty = 0)
+```
+
+Above is the visual representation of a tree-based model; a decision tree.
+
+
+*__Sidebar__: every winter holiday I set up a green Christmas decision tree on my wall for activities to do conditional on the weather*.
+
+<center>
+![](nerd.jpg)
+</center>
+
+
+An important feature about decision trees is that they are sensitive to the initial conditions, i.e. small perturbations in the data they are trained on will lead to different predictions.
+
+```{r, warning = FALSE}
+train = sample_frac(ahs, 0.5)
+test  = anti_join(ahs, train, by = 'id')
+
+fit_tree = tree(as.factor(beds) ~ ., train)
+
+plot(fit_tree)
+text(fit_tree, pretty = 0)
+```
+
+
+Notice that `baths` and `lotsize` switched, and we have added `crime` as a variable.
+Regardless, we can still predict with this model.
+
+```{r, warning = FALSE}
+yhat = predict(fit_tree, test, type = 'class')
+tbl = table(yhat, test$beds)
+tbl
+
+sum(diag(tbl))/sum(tbl)
+```
+
+An accuracy of 2/3 is not anything to be proud about, but it appears to be better than randomly guessing.
+
+
+
+## Pruning
+***************
+
+Tree-based models also suffer from over fitting. 
+To deal with this, we *prune* the trees.
+The math of pruning turns out to be quite similar to LASSO, which cross-validation to the rescue!
+Unfortunately, `caret` does not have an option for tree models, so we will use what is built in to the `tree` package.
+We are following lab 8.3 rather closely.
+
+```{r, warning = FALSE}
+fit_tree_cv = cv.tree(fit_tree, FUN = prune.tree)
+
+fit_tree_cv
+```
+Here the hyperparameter `$k` is similar to $\lambda$ from LASSO.
+The deviance is given by
+$$
+-2 \sum_m \sum_k n_{m,k} \text{log}(\hat{p}_{m,k})
+$$
+where $m$ denotes terminal nodes (leaves), $k$ denotes class, $n_{m,k}$ is the number of observations for each $m$, $k$ combination, and $\hat{p}_{m,k}$ is the proportion of training observations in each $m$, $k$ combination.
+
+```{r}
+df_tree = data.frame(Deviance = fit_tree_cv$dev, k = fit_tree_cv$k)
+ggplot(df_tree, aes(x = k, y = Deviance)) +
+  geom_line() +
+  geom_point() +
+  theme(text = element_text(size = 20))
+```
+
+It somewhat surprisingly looks like the unrestricted model performs the best with 14 leaves.
+Let's fit it.
+
+```{r, warnings = FALSE}
+fit_best = prune.misclass(fit_tree, best = 14)
+plot(fit_best)
+text(fit_best)
+```
+
+Wait, this looks like the same model!
+Well, that's because it is.
+What we just did above was demonstrating how to prune an individual tree. 
+
+
+# Regression Trees
+*****
+Fitting a regression tree is largely the same motions as a classification tree, except:
+
+1. we prune with `prune.tree()`
+2. $y$ should be `numeric`
+3. $\hat{y}$ is the mean of $y$ in each region
+
+```{r, warning = FALSE}
+fit_tree = tree(log(value) ~ ., train)
+fit_tree_cv = cv.tree(fit_tree) # default is prune
+
+i = which.min(fit_tree_cv$dev)
+optm_size = fit_tree_cv$size[i]
+
+fit_best = prune.tree(fit_tree, best = optm_size)
+
+plot(fit_best)
+text(fit_best)
+```
+
+

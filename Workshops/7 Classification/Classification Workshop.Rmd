@@ -1,0 +1,138 @@
+---
+title: "Classification Workshop"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+In this workshop, we are going to use the [Commodity Flows Survey](https://www.census.gov/programs-surveys/ahs/data/2017/ahs-2017-public-use-file--puf-/ahs-2017-national-public-use-file--puf-.html) to predict export destinations.
+See the codebook for details.
+
+
+# Preliminaries
+*****************************
+
+## Setup
+****************************
+
+Load in the data as `cfs` and the following packages
+
+- `data.table` (you will actually want this for this data)
+- `tidyverse`
+- `nnet`
+- `MASS`
+- `caret`
+
+You don't have to set the variable names to lower case, but I *always* do.
+
+## Trim
+*********************
+
+Remove:
+
+1. the export county code "not an export"
+2. the standard classification of Transported Goods code "SCTG Suppressed"
+3. the mode codes corresponding to "mode suppressed", "single mode", "other mode" and "non-parcel multimode"
+
+## EDA
+***********************
+
+Plot a histogram of the shipment value, weight, and distance routed. 
+Should we log these?
+
+Do any other EDA that makes you happy!
+
+
+## Data Cleaning
+*******************************
+
+Run this code
+```{r, eval = FALSE}
+##################################################
+## Standard Classification of Transported Goods ##
+##################################################
+
+cfs$sctg[cfs$sctg %in% paste(0,as.character(1:5), sep = '')] = '01-05'
+cfs$sctg[cfs$sctg %in% paste(0,as.character(6:9), sep = '')] = '06-09'
+cfs$sctg[cfs$sctg %in% as.character(10:14)] = '10-14'
+cfs$sctg[cfs$sctg %in% as.character(15:19)] = '15-19'
+cfs$sctg[cfs$sctg %in% as.character(20:24)] = '20-24'
+cfs$sctg[cfs$sctg %in% as.character(25:30)] = '25-30'
+cfs$sctg[cfs$sctg %in% as.character(31:34)] = '31-34'
+cfs$sctg[cfs$sctg %in% as.character(35:38)] = '35-38'
+cfs$sctg[cfs$sctg %in% as.character(39:43)] = '39-43'
+
+############################
+## Mode of transportation ##
+############################
+
+cfs$mode[cfs$mode %in% c(4,5)] = 3
+cfs$mode[cfs$mode %in% c(8:10, 101)] = 7 
+cfs$mode[cfs$mode %in% c(15:17)] = 13
+```
+
+## Sample-splitting
+********************************
+
+Set your seed to 490 and create a train and test data, where the train is 75% of the data.
+Anti join by shipment id.
+
+
+# Analysis
+*********************************
+
+We are going to compare the error rate of three different models: multinomial logistic regression, LDA, and QDA.
+We are not using KNN because that would take a month to fit (okay, probably not that long but I wouldn't be surprised if it took over an hour).
+
+## Logistic Regression
+********************************************
+
+Fit the following simple model:
+```{r, eval = FALSE}
+mfit = multinom(export_cntry ~ log(shipmt_value) + log(shipmt_wght) + log(shipmt_dist_routed), cfs)
+```
+
+Then obtain
+
+1. the summary
+2. the p-values for each coefficient
+3. the confusion matrix
+4. the test error rate
+
+Now run the more complex model:
+```{, eval = FALSE}
+mfit = multinom(export_cntry ~ log(shipmt_value) + log(shipmt_wght) + log(shipmt_dist_routed) + mode + sctg +                   hazmat + temp_cntl_yn, cfs)
+```
+
+Obtain the same four measures.
+
+Which model performs better?
+Which export destination do these models have a hard time predicting?
+
+## LDA
+*****************************************************
+
+Fit an LDA model to the complex model in the logistic regression.
+Obtain 
+
+1. the confusion matrix
+2. the test error rate
+
+Does this model have a hard time predicting the same destination as the logistic?
+Does it perform better than the logistic?
+
+## QDA
+*******************************************
+Do the steps in the LDA subsection above for a QDA model.
+
+How does this model do with "that" export destination?
+How does it's performance compare?
+
+
+# The Data Science
+*****************************
+
+Which model would you choose and why?

@@ -1,0 +1,96 @@
+---
+title: "Random Forest"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+Last time we fit a poorly performing regression tree that predicted the fare paid by titanic passengers.
+Today we are going to see if we can do any better.
+
+# Set up
+**********
+Load
+
+- `tree`
+- `randomForest`
+- `tidyverse`
+- `modelr`
+
+Set the seed to 490.
+
+Load the data as `titanic` 
+
+- select `fare`, `survived`, `pclass`, `sex`, `sibsp`, `age`
+- then omit any `NA`s
+
+Finally, sample-split with the training data set to 67%.
+
+```{r, message = FALSE, include = FALSE}
+library(tree)
+library(randomForest)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+titanic = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/titanic3.csv')
+titanic = titanic %>%
+  select(fare, pclass, sex, sibsp, age, survived) %>%
+  na.omit
+
+train = sample_frac(titanic, 0.67)
+test  = anti_join(titanic, train)
+```
+
+Recall we have the MSEs from the previous workshop:
+
+```{r, warning = FALSE}
+fit = lm(fare ~ pclass*sibsp*survived, data = train)
+mse(fit, test)
+
+
+fit_tree = tree(fare ~ survived + pclass + sex + sibsp + age, data = train)
+fit_best = prune.tree(fit_tree, best = 5)
+mse(fit_best, test)
+```
+
+# Bagging
+*******************************
+
+Using the `formula` of `fare ~ survived + pclass + sex + sibsp + age, data = train`, fit a bagged tree-based model.
+specify `na.action = na.omit` in `randomForest()`.
+Produce the MSE.
+
+```{r bagging, include = FALSE}
+f = fare ~ survived + pclass + sex + sibsp + age
+fit_bag = randomForest(f, data = train, mtry = 5, ntree = 490, na.action = na.omit)
+fit_bag
+mse_bag = mse(fit_bag, test)
+mse_bag
+```
+
+# Random Forest
+*********************
+Now fit a random forest with `mtry` set to the square root of the number of covariates.
+
+
+```{r rf, include = FALSE}
+f = fare ~ survived + pclass + sex + sibsp + age
+fit_rf = randomForest(f, data = train, mtry = sqrt(5), ntree = 490, na.action = na.omit)
+fit_rf
+mse_rf = mse(fit_rf, test)
+mse_rf
+```
+
+Which model has the best performance?
+```{r, include = FALSE}
+# The random forest is the best performing model
+```
+

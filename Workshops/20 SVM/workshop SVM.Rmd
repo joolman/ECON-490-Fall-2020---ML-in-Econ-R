@@ -1,0 +1,51 @@
+---
+title: "Support Vector Machines"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We are going to fit a classification SVM on the NLSY data predicting the binary gender variable using height and weight.
+
+Instructions:
+
+1. Load the packages
+   - `kernlab`
+   - `tidyverse`
+2. Set the seed to 490
+3. load the NLSY workshop data
+4. Perform a 50-50 sample split
+5. Using a 5-fold CV with a linear kernel, output the results of a SVM with $C\in\{0.1, 1 \}$ (two models)
+6. Using a 5-fold CV with a radial kernel, output the results of a SVM with $C\in\{0.1, 1 \}$ and $\sigma \in \{0.01, 0.1\}$ (four models)
+7. Do any of the models stand out as clear winners?
+   
+
+
+```{r, include = FALSE, message = FALSE, warning = FALSE}
+library(kernlab)
+library(tidyverse)
+set.seed(490)
+nlsy = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/nlsy/nlsy_workshop_data.csv')
+
+train = sample_frac(nlsy, 0.50)
+test  = anti_join(nlsy, train)
+
+f = as.factor(msa) ~ mother_yos + yos + I(weight/(height^2)) + firm_size + personal_computer + ever_own_business
+
+
+(  fitl_0 = ksvm(f, train, C = 0.1, kernel = 'vanilladot', cross = 5)  )
+(  fitl_0 = ksvm(f, train, C = 1, kernel = 'vanilladot', cross = 5)  )
+
+(  fitr_0_0 = ksvm(f, train, C = 0.1, kernel = 'rbfdot', kpar = list(sigma = 0.01), cross = 5)  )
+(  fitr_1_0 = ksvm(f, train, C = 1, kernel = 'rbfdot', kpar = list(sigma = 0.1), cross = 5)  )
+(  fitr_0_1 = ksvm(f, train, C = 0.1, kernel = 'rbfdot', kpar = list(sigma = 0.1), cross = 5)  )
+(  fitr_1_1 = ksvm(f, train, C = 1, kernel = 'rbfdot', kpar = list(sigma = 0.1), cross = 5)  )
+
+```

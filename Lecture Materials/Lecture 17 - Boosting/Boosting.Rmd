@@ -1,0 +1,145 @@
+---
+title: "Boosting"
+author: "Applied Machine Learning in Economics"
+date: ""
+output:
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Setup
+*****************************************
+Let's start off with our usual setup.
+
+```{r, message = FALSE}
+library(randomForest)
+library(xgboost)
+library(caret)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data continuous.csv') 
+
+# See warning below on why we are doing this
+ahs = ahs %>% 
+  mutate(lcost   = log(cost),
+         lhinc   = log(hinc),
+         leqvval = log(eqvval))
+
+train = sample_frac(ahs, 0.8)
+test  = anti_join(ahs, train, by = 'id')
+
+f = log(value) ~ lcost + npeople + lhinc + beds + baths + leqvval + lotsize + yos + hoa + condo + garage + bld + crime + math + hinf + houtf
+```
+
+# Boosting
+**************************
+
+Boosting is an alternative to bagging. 
+It is a combination of many "weak learners" that lead to more accurate predictions en concert.
+This *ensemble* is a sequence of models fit at various stages of the process outlined below, where each weak learner can be from any class of model. 
+However, we tend to use regression trees in practice.
+In theory, there is nothing preventing you from fitting this technique manually using any model you see fit.
+Just be careful with your combinatorics!
+
+There are three types of boosting:
+
+1) gradient boosting
+2) adaptive boosting
+3) extreme gradient boosting
+
+We will use the third, as it is the most computationally efficient on the quest for accuracy!
+
+## Tree Models
+********************************
+
+Bagging does not run into trouble with overfitting.
+Neither of the hyperparameters--that is the number of trees or number of covariates to consider--leads to overfitting because we are taking averages.
+
+Boosting can suffer from overfitting.
+In short, boosting works as follows where we are using vector notation:
+
+1. fit a model on $y$, obtain residuals $e_1$
+2. fit a model on $e_1$, obtain residuals $e_2$
+3. fit a model on $e_2$, obtain residuals $e_3$
+4. continue pattern until stopping criteria met
+
+If you have learned anything in this class, you should be alarmed by boosting.
+You should be thinking, "Wait! Won't this lead to fitting the irreducible noise?"
+And the answer is, yeah that is totally possible. 
+But it can also improve our predictions too. 
+We need to find the happy middle ground.
+
+The best approach is to go slowly and fit small trees.
+To meet this, we have three hyperparameters:
+
+1. $B$ - the number of tress
+2. $\eta$ - a shrinkage parameter (the learning rate)
+3. $d$ - the number of splits (depth)
+
+
+In the `caret` version of `xgboost()`, we need to specify *all* of the arguments.
+I am putting in the defaults for the other arguments that we are less interested in.
+```{r xgboost cv, results = FALSE}
+trControl = trainControl(method = 'cv',
+                         number = 5)
+
+fit_xgb_cv = train(f, train,
+          trControl = trControl,
+          method = 'xgbTree',
+          tuneGrid = expand.grid(eta       = seq(0.1, 0.5, by = 20),
+                                 max_depth = c(1:4),
+                                 nrounds   = seq(40, 200, by = 20),
+                                 gamma     = 0,
+                                 colsample_bytree = 1,
+                                 min_child_weight = 1,
+                                 subsample = 1),
+      metric = 'RMSE')
+
+fit_xgb_cv$bestTune
+```
+**Note: this produces a bunch of warnings that I have hidden in this script saying** `WARNING: amalgamation/../src/objective/regression_obj.cu:174: reg:linear is now deprecated in favor of reg:squarederror.`
+
+Also, this makes my computer make a funny noise when computing this specific CV. Weird.
+
+Now we can refit this model on the entire training data and compare the MSE.
+`xgboost()` requires $X$ and $y$ matrices, so will calculate them.
+This also requires us to manually calculate the MSE.
+```{r xgboost}
+x_train = model.matrix(f, train)
+y_train = log(train$value)
+
+x_test = model.matrix(f, test)
+y_test = log(test$value)
+
+bt = fit_xgb_cv$bestTune
+
+fit_xgb = xgboost(x_train, y_train,
+                  eta = bt$eta,
+                  max_depth = bt$max_depth,
+                  nrounds = bt$nrounds)
+```
+Note that each step here is determined by the learning rate. 
+If we had increase our `max_depth` parameter, it could in theory fit until the MSE is zero. 
+I hope this alarms you, as this would imply that we have perfectly fit the training data i.e. the irreducible noise i.e. overfit.
+
+```{r}
+yhat = predict(fit_xgb, x_test)
+mse_xgb = mean((yhat - y_test)^2)
+mse_xgb
+```
+
+With the parameters we have identified from cross validation, it appears the RF model performs better than the boosted model.
+We could try to expand our search over *all* hyperparameters in the boosted model.
+But, as all textbooks go: this is left as an exercise for the reader.
+
+
+
+

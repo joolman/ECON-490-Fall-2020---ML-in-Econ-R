@@ -1,0 +1,782 @@
+---
+title: "HW1 - Yeehaw! Data Wrangling"
+author: Applied Machine Learning in Economics
+date: 'Fall 2020'
+output: 
+  html_document:
+    toc: yes       # table of contents
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Welcome to data wrangling! 
+Here we are going to create the dataset used for every homework.
+Not going to lie, data wrangling and cleaning is a pain, so start on this early and ask for help!
+Since it is such a pain, this assignment is written as a guide.
+Although some examples are given, you will have to write some of your own code.
+
+**IMPORTANT:** Don't let the length of this homework spook you. The rest of the assignments will not be as lengthy.
+Worst case scenario, I will provide the completed data sets to all.
+
+There is some code below, but **don't just copy and paste code**, it doesn't help your brain remember the commands for later.
+
+# Downloading the Data
+*******************************************
+There are multiple datasets that we will be merging together for our analysis throughout the semester.
+Create a **unique folder** where all of the data will be stored.
+
+## Current Population Survey
+********************************************************************
+
+First head over to the Current Population Survey’s Integrated Public Use Microdata at [ipums.org](https://www.ipums.org).
+The CPS interviews individuals for four months, leaves them alone for eight months, then has four more months of interview. 
+That is a total of eight months of variables per individual over a total of sixteen months.
+There is an additional Annual Social and Economic Supplement (ASEC) that collects income statistics.
+This basic monthly data are literally the microdata used to calculate the unemployment statistics. 
+
+$$Neat.$$
+
+
+Click the CPS box, and then create a free account.
+Once you have created your account, click Get Data in CREATE AN EXTRACT.
+
+The first thing we need to do is select the sample.
+We do have the option for many years (and months) of data, but we are only going to use one sample.
+We are using the ASEC 2016 only.
+Unselect all other ASEC years, and also unselect all BASIC MONTHLY samples.
+
+
+There are a boatload of variables to choose from, but here is the list of variables you will need (use the search feature):
+
+- STATEFIP
+- AGE
+- SEX
+- RACE
+- MARST
+- NCHILD
+- HISPAN
+- EMPSTAT
+- LABFORCE
+- OCC1990
+- EDUC
+- WKSWORK1
+- FTOTVAL
+- INCWAGE
+- SPMMORT
+- HEALTH
+
+Once you have used added all these variables to cart, it is time to checkout. Click VIEW CART.
+You should notice that IPUMS automatically adds other variables. We will be using ASECWT.
+
+Do not manually remove any of the added variables. 
+They will be excluded implicitly in the homework and will not appear in the final dataset.
+
+1. VIEW CART
+2. CREATE DATA EXTRACT
+3. DATA FORMAT $\rightarrow$ .csv
+4. Describe with a clever name like: `ML ECON HW Data`
+5. SUBMIT EXTRACT
+
+**IT MAY TAKE A WHILE.** 
+The duration depends on the size of the data.
+IPUMS uploads it to their website so you can download it.
+*You will get an email when it is ready.*
+The file is will be a zipped file with a .gz format.
+Just unzip/extract it.
+
+Store the cps_00001.csv in the data folder (your number may differ if you have previous extracts).
+
+
+
+## Federal Housing Finance Agency
+**************************************************************************
+
+The FHFA is collects housing data and for our purposes creates a several housing price indices at several different geographic levels.
+Follow this [link](https://www.fhfa.gov/DataTools/Downloads/Pages/House-Price-Index-Datasets.aspx), scroll down to Quarterly Data (Purchase-Only Indexes), and download the state-level txt to the unique folder.
+
+## Bureau of Economic Analysis
+*******************************************************************************
+
+The BEA has more macro-flavored datasets.
+We will be using their state-level GDP data.
+Follow this [link](https://apps.bea.gov/regional/downloadzip.cfm), download SAGDP tables: Annual GDP by State into that lovely folder.
+
+
+## State Abbreviations to State FIPS Crosswalk
+**************************************************************************
+
+Here is a [GitHub link](https://gist.github.com/soodoku/f9e18efe98f7d74931d8b4a79a49e6f5) that we will need that has a crosswalk from state abbreviations to state federal information processing standards (FIPS) codes.
+If you haven't figured it out, click download zip.
+
+## Finally
+**************************************************************************
+Make sure all files are unzipped stored in the same folder.
+Go ahead and delete the zip files.
+
+
+# Let the Wrangling Begin!
+**************************************************************************
+
+Outline
+
+1. Load packages
+2. Load data
+3. Create state-level dataset from FHFA, BEA, CPS, and the crosswalk
+4. Create occupation and industry-level variables from CPS
+5. Create individual-level variables from CPS
+6. Save
+
+We will create the following variables:
+
+| Individual-level                | State-level          | Occupation-level |
+|---------------------------------|----------------------|------------------|
+| total family income             | real gdp growth rate | occ. avg. wage   |
+| LF status                       | real gdp per capita  |                  |
+| degree category                 | house price index    |                  |
+| age                             | college share        |                  |
+| marital status indicator        | unemployment rate    |                  |
+| female indicator                |                      |                  |
+| anykids indicator               |                      |                  |
+| hispanic indicator              |                      |                  |
+| race category                   |                      |                  |
+| weeks worked last year          |                      |                  |
+| renter status                   |                      |                  |
+| health status                   |                      |                  |
+
+ 
+
+## Preliminary setup
+************************************************************************************************
+
+### (10 Points) Writing Your Name on Your Homework
+************************************************************************************************
+Easy points. Go get them.
+
+**[10 POINTS] for name on assignment.** 
+
+### (10 Points) Loading Packages
+************************************************************************************************
+
+Load the following packages into `R`.
+If you have yet to install them, use the command `install.packages('tidyverse')` and so on.
+
+```{r packages, message = FALSE}
+library(data.table) # fread()       Stands for (FREAKING) fast read
+library(tidyverse)  # For the wrangling
+```
+**[5 POINTS] for loading** `data.table`. 
+
+**[5 POINTS] for loading** `tidyverse`. 
+
+### (20 Points) Directory Path Setup & Showing All Downloaded Files
+************************************************************************************************
+
+Now let's look at the directory where data are located.
+```{r working directory}
+path = 'C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data'
+list.files(path)
+```
+
+SPOILER ALERT! We are making `hw data.csv` in this assignment!
+
+**[5 POINTS] for ** `cps_000XX.csv`. 
+
+**[5 POINTS] for ** `JPI_PO_state.txt`.
+
+
+**[5 POINTS] for ** `SAGDP1__ALL_AREAS_1997_2019.csv`.
+
+
+**[5 POINTS] for ** `state_abbrev_fips.txt`. 
+
+
+### (10 Points) Loading the data
+************************************************************************************************
+
+Time to read in the data.
+Use `fread()` for the files with `.csv` or `.txt` extensions.
+
+```{r cps}
+cps = fread(paste0(path, '/cps_00026.csv'))
+dim(cps)
+names(cps) = cps %>% names %>% tolower # Who wants to hold down shift all the time?
+names(cps)
+```
+
+
+**[1 POINT] for selecting all variables AND setting to lowercase**. 
+
+Load the rest of the data with the following object names:
+
+ - `HPI_PO_state.txt` as `hpi`
+ - `SAGDP1__ALL_AREAS_1997_2019.csv` as `gdp`
+    - This will produce an `warning()` but all is okay. Open the file to investigate why. Then **tell me why**.
+ - `state_abbrev_fips.txt` as `cw`
+
+```{r hidden reading data, echo = FALSE, warning = FALSE}
+hpi   = fread(paste0(path, '/HPI_PO_state.txt'))
+gdp   = fread(paste0(path, '/SAGDP1__ALL_AREAS_1997_2019.csv'))
+cw    = fread(paste0(path, '/state_abbrev_fips.txt'))
+ls()
+```
+
+**[1 POINT] for explaining why there is a warning.**
+
+**[2 POINTS] each for ** `cw`, `gdp`, `hpi`, `path`. 
+
+
+## Creating State-level Variables
+************************************************************************************************
+
+First we need to create a placeholder object to store the data.
+We need to merge at the BEA regional level and at the state level.
+Start with the CPS data. 
+
+
+### (5 Points) The State-level Placeholder
+************************************************************************************************
+Create a `tibble` with one column of state FIPS codes.
+The arguments of `tibble` are the names of the variables you want.
+Set the variable equal to the values of each state FIPS code.
+Use the `unique` function on the relevant `cps` column.
+
+Since we will be using a `join` on this data, choose the variable name as it appears in the CPS data. 
+
+```{r placeholder, echo=FALSE, results = FALSE}
+hold = tibble(statefip = unique(cps$statefip)) 
+str(hold)
+```
+**[5 POINTS] for correct ** `str(hold)`. 
+
+### (5 Points) HPI
+************************************************************************************************
+Type `head(hpi)` to look at the variable names.
+Pay attention to the state variable.
+Notice how it is in state abbreviations, not in FIPS codes.
+Therefore, we need the crosswalk dataset.
+
+Inspect the `cw` dataset.
+Remove the entry that is neither a state nor a district.
+If it is in row `n`, then type `cw[-n, ]` to remove it.
+
+Also, check the names of `cw`.
+Reassign them so the abbreviation is `state` and the FIPS code is `statefip` to match data.
+This step is necessary, because datasets can only be merged on variables with names that exactly match.
+```{r cw hidden, echo = FALSE}
+cw = cw[-52, ]
+names(cw) = c('statefip', 'state')
+```
+Then you should get:
+```{r cw shown}
+dim(cw)
+names(cw)
+```
+
+Now working with `hpi`.
+Trim the dataset to be only 2016 quarter 1 and the variables `state` and `index_sa` (seasonally adjusted).
+Rename `index_sa` to `hpi`
+```{r hpi, echo = FALSE}
+hpi = hpi[hpi$yr == 2016 & hpi$qtr == 1, c('state', 'index_sa')]
+names(hpi)[2] = 'hpi'
+```
+
+Then left join the crosswalk to `hpi`, remove the `state` variable, left join to `hold`, and remove `cw` and `hpi`.
+
+
+```{r hpi left_join, echo = FALSE, results = FALSE, message = FALSE}
+hpi = left_join(cw, hpi) # you don't need 'by' here, because there is only one common variable
+hpi = hpi[, -'state']
+hold  = left_join(hold, hpi)  # Produces a message to let you know how it merges
+rm(cw, hpi)
+str(hold$hpi)
+```
+
+**[5 POINTS] for correct** `str(hold)`. 
+
+
+### (10 Points) Real GDP
+************************************************************************************************
+Up next we are going to calculate state-level real GDP growth and GDP per capita.
+Just looking at the size of `gdp`, it looks like we will need to do some trimming.
+Go ahead and type `head(gdp)` into the console.
+Looks like there are multiple types of GDP variables and each year has its own column.
+
+Firstly, trim the data so only the `GeoFIPS` that are in the state FIPS from `hold`.
+To save you some time, the `GeoFIPS` variable is not the way we want it:
+```{r gdp FIPS}
+unique(gdp$GeoFIPS)
+```
+Can you think of a way using middle school level math to adjust them to match `hold`?
+```{r gdp FIPS adjusted, echo = FALSE, results = FALSE}
+gdp$GeoFIPS = gdp$GeoFIPS/1000
+unique(gdp$GeoFIPS)
+```
+Once you adjusted `GeoFIPS`, trim to just the FIPS that we need.
+```{r gdp FIPS trim, echo = FALSE}
+gdp = gdp[gdp$GeoFIPS %in% hold$statefip, ]
+```
+
+```{r}
+dim(gdp)
+```
+
+As you may have notice from `head(gdp)`, there are multiple types of GDP.
+```{r gdp description}
+unique(gdp$Description)
+```
+We just want the first.
+*Note we are in 2012 millions dollars.*
+You can select using an exact match of the phrase, but that sounds like a pain to type out.
+Notice that `[1]` and `[2]` have the word "real" in them, but `[1]` is capitalized.
+We can use this to our advantage!
+Use `grepl` to select the rows of `gdp` that we want.
+*Type* `?grepl` *if you do not know how to use it*.
+
+```{r gdp grepl, echo = FALSE}
+gdp = gdp[grepl('Real', gdp$Description, ignore.case = FALSE), ] # ignore.case = FALSE is the default
+dim(gdp)
+```
+
+Ah, now the row dimension is looking better.
+The columns... not so much.
+Trim so we only have the three variables that we need to merge.
+To calculate the annual real GDP growth rate from 2015 to 2016, use the double smiley face equation for percent change.
+
+#### THE DOUBLE SMILEY FACE EQUATION
+![](Smiley_Face_Equation.png)
+
+
+Note that we need use real GDP to calculate percent change $(\% \Delta)$ so the units in parenthesis will cancel out unlike nominal GDP:
+$$
+ \% \Delta rGDP = \frac{rGDP_{2016}(\$2012) - rGDP_{2015}(\$2012)}{rGDP_{2015}(\$2012)} 100\%
+$$
+So, let's go ahead and code this. 
+Notice that some variables have numbers as names and how it appears in the code.
+
+```{r gdp percent change}
+gdp = gdp[, c('GeoFIPS','2015','2016')]
+gdp = gdp %>% 
+  mutate(rgdp_growth = (`2016` - `2015`)/`2015`*100)
+```
+
+Next, we need to calculate rGDP per capita in 2016.
+The units for 2016 rGDP is millions of 2012 dollars, so we need to convert this to 2016 dollars.
+We also need to get the population for each state.
+We can get this from the CPS data using the variable `asecwt`, which converts the individual survey observations to be representative at aggregated levels.
+
+To convert the units of 2016 rGDP to 2016 dollars, use the following equation:
+$$
+rGDP_{2016} (\$2016) = rGDP_{2016} (\$2012) \frac{CPI_{2016}}{CPI_{2012}}
+$$
+where $CPI_{2016} = 239.989$ and $CPI_{2012} = 229.586$.
+
+
+```{r, echo = FALSE}
+cpi_2016 = 239.989
+cpi_2012 = 229.586
+```
+
+```{r gdp per capita}
+gdp$`2016` = gdp$`2016`*1e+06*cpi_2016/cpi_2012
+pop        = aggregate(asecwt ~ statefip, data = cps, FUN = sum)
+gdp$rgdpc  = gdp$`2016` / pop$asecwt; rm(pop)
+```
+Now select the variables we need, join to `hold`, and then remove.
+```{r merge gdp, echo = FALSE}
+names(gdp)[1] = 'statefip'
+gdp = gdp[, c('statefip','rgdp_growth', 'rgdpc')]
+hold = left_join(hold, gdp, by = 'statefip')
+rm(gdp)
+rm(cpi_2012, cpi_2016)
+```
+
+```{r gdp summary, results = FALSE}
+str(hold)
+```
+
+**[5 POINTS] for correct ** `rgdp_growth` **ouput from** `str(hold)`. 
+
+**[5 POINTS] for correct** `rgdpc` **output from** `str(hold)`. 
+
+### (5 Points) Merging
+************************************************************************************************
+Finally join `cps` with `hold` and remove `hold`.
+
+```{r cps merge hidden, echo = FALSE, message = FALSE}
+cps = left_join(cps, hold); rm(hold)
+```
+```{r cps merge names, results = FALSE}
+names(cps)
+```
+
+**[5 POINTS] for adding state-level data shown using ** `names(cps)`. 
+
+
+
+### (5 Points) CPS State-level Data
+************************************************************************************************
+Now we need to calculate four variables from the CPS:
+
+1. Unemployment rate
+2. College share
+3. Manufacturing industry share
+4. STEM occupation share
+
+
+The unemployment rate gives us an idea of the state-level business cycle, the college share gives us an idea of the state-level employment bundle, the manufacturing share gives us an estimate of automatable/offshorable jobs, and STEM occupations give us an idea of state-level innovation potential. Let's get to it.
+
+#### Unemployment Rate
+************************************************************************************************
+Reference this [link](https://cps.ipums.org/cps-action/variables/empstat#codes_section) for the variable list for `empstat`.
+
+Recall that the unemployment rate is calculated as follows:
+$$
+\text{urate} = \frac{\text{unemployed}}{\text{labor force}} * 100\%
+$$
+But we need this grouped at the state-level.
+We also need to only select the observations that are either unemployed or employed.
+Then we need to use the weights, so we have correctly regionally aggregated variables.
+
+We can do the first step by using `dplyr` function `group_by(statefip)`. 
+We can do the second step by craftily using Boolean (`TRUE` or `FALSE`) as an indicator for each status, where `TRUE = 1` and `FALSE = 0`.
+Then we simply multiply this Boolean vector by `asecwt` to correctly select the observations we need.
+
+```{r u/e codes hidden, echo = FALSE}
+u_codes = c(21, 22)
+e_codes = c(10, 12)
+```
+
+```{r, unemployment rate}
+cps = cps %>%
+  group_by(statefip) %>%
+  mutate(urate = sum(empstat %in% u_codes*asecwt) / sum(empstat %in% c(u_codes,e_codes)*asecwt)*100 )
+```
+Now display the summary.
+```{r, results = FALSE}
+summary(cps$urate)
+```
+
+
+**[2.5 POINTS] for correct ** `summary`. 
+
+#### College Share
+************************************************************************************************
+Next we need to calculate the college share.
+Here is the [link](https://cps.ipums.org/cps-action/variables/educ#codes_section) to the variable definition.
+We are interested in the working age population, and it doesn't make sense to compare those that aren't old enough to have obtained at least a college degree.
+Let's focus on those that are ages 25-64.
+Do not multiply by 100, because we want the share, not the percent.
+
+```{r college share hidden, echo = FALSE}
+ba_code  = 111
+niu_code = 1
+```
+```{r college share}
+cps = cps %>%
+  group_by(statefip) %>%
+  mutate(coll_share = sum(  (age >= 25 & age < 65)*(educ >= ba_code)*asecwt)/
+                      sum(  (age >= 25 & age < 65)*(educ != niu_code)*asecwt) )
+```
+```{r college share hidden 2, echo = FALSE}
+rm(ba_code, niu_code)
+```
+```{r coll_share summary, results = FALSE}
+summary(cps$coll_share)
+```
+
+**[2.5 POINTS] for correct ** `summary`. 
+
+
+## CPS Occupation-level variables
+***********************************************************************************************
+
+We are now going to create average incomes for moderately aggregated occupations.
+This variable ignores how many hours and weeks an individual works, because we want to know what the average worker earns.
+
+FOR THIS CHUNK OF CODE AND THIS CHUNK OF CODE ONLY, YOU CAN COPY AND PASTE.
+```{r occs}
+cps$occ = 'NILF' # not in labor force
+cps$occ[cps$occ1990 %in% c(3:37)] = 'Manager'
+cps$occ[cps$occ1990 %in% c(43:83,166:173)] = 'Prof/Scientific'
+cps$occ[cps$occ1990 %in% c(84:106)] = 'Health'
+cps$occ[cps$occ1990 %in% c(113:165)] = 'Education'
+cps$occ[cps$occ1990 %in% c(174:176, 178)] = 'Social'
+cps$occ[cps$occ1990 %in% c(183:200)] = 'Entertainer'
+cps$occ[cps$occ1990 %in% c(203:235)] = 'Technician'
+cps$occ[cps$occ1990 %in% c(243:290)] = 'Sales'
+cps$occ[cps$occ1990 %in% c(303:391)] = 'Admin support'
+cps$occ[cps$occ1990 %in% c(405:423)] = 'HH/Protective Services'
+cps$occ[cps$occ1990 %in% c(434:469)] = 'Other Services'
+cps$occ[cps$occ1990 %in% c(473:498)] = 'Farming Forestry Fishing'
+cps$occ[cps$occ1990 %in% c(503:549)] = 'Mechanics/Repairers'
+cps$occ[cps$occ1990 %in% c(558:617)] = 'Construction/Extraction'
+cps$occ[cps$occ1990 %in% c(628:699)] = 'Precision Production'
+cps$occ[cps$occ1990 %in% c(703:799)] = 'Machine Operators'
+cps$occ[cps$occ1990 %in% c(803:890)] = 'Transportation'
+```
+*This chunk could have used several nested* `ifelse` *however, that would have been wildly messy and hard to read. If you can think of how to use nested functions with* `dplry` *then __you are learning!!!__*
+
+
+Now create a variable `occwage` that is the mean of `incwage` for each group of `occ` using the usual `dplyr` commands.
+Display the summary of `occwage`.
+
+```{r occwage, echo = FALSE, results = FALSE}
+cps = cps %>%
+  group_by(occ) %>%
+  mutate(occwage = mean(incwage))
+summary(cps$occwage)
+```
+
+Note that `NILF` has a positive wage. This is because those *currently* not in the labor force may have earned a wage in the previous year.
+It also includes those in the military, whom are not part of the labor force but earn a wage.
+Regardless, it is the smallest group.
+We will leave this value alone.
+
+
+
+
+
+## CPS Individual-level Variables
+************************************************************************************************
+
+Since the goal is to predict labor market outcomes, let's focus on the working age population.
+Go ahead and trim the data so we only have 25 to 64 year-olds and print the dimension.
+We are using 25 as the minimum to allow for *most* to be done with their education.
+```{r trimming cps, echo = FALSE}
+cps = cps[cps$age >= 25 & cps$age < 65, ]
+dim(cps)
+```
+
+### (10 POINTS) Dependent Variables
+************************************************************************************************
+
+#### Total Family Income
+First thing to do is to plot the income variable in a histogram (you do not need to replicate any of the plots, but you may do so for fun!).
+```{r hist}
+hist(cps$ftotval, xlab = 'Income', ylab = 'Count', main = 'Income Histogram')
+```
+
+This is clearly a very skewed distribution, with negative values.
+Looking at the [documentation for FTOTVAL](https://cps.ipums.org/cps-action/variables/ftotval#codes_section) shows that some values are not actually observations.
+According to the histogram we do not have these values.
+
+However, there are plenty of zeros and negative numbers, which don't behave well when logs are taken. To see this, note the inverse relationship:
+$$
+\begin{align*}
+  y & = ln(x)\\
+  x & = ln(y) \tag{1}\\
+  y & = e^x
+\end{align*}
+$$
+where (1) is to obtain the inverse function. Let's look at this graphically.
+The inverse is simply flipping the function along the 45-degree line.
+```{r, echo = TRUE}
+n = 4 # I was testing out different scales, but wanted to showcase this feature
+x1 = seq(-n, n, length = 1000)
+y1 = exp(x1)
+x2 = seq(0, n, length = 1000)[-1]
+y2 = log(x2)
+plot(y1 ~ x1, xlim = c(-n,n), ylim = c(-n,n), type = 'l', col = 'blue', lwd = 2,
+     xlab = 'x', ylab = 'y', main = 'y = exp(x) (blue) and y = ln(x) (red)' )
+abline(h = 0, v = 0, lty = 2) # vertical and horizontal line
+lines(y2 ~ x2, col = 'red', lwd = 2)
+lines(x1, x1, col = 'black', lty = 2)
+rm(n, x1, y1, x2, y2)
+```
+
+The logarithm of zero is undefined (if you remember your limits, the limit from the right is negative infinity but the limit from the left does not exist, therefore the limit does not exist since they are not the same)!
+
+There is a real economic reason of why someone’s income is negative (think revenues and expenditures).
+However, this is a small group, so we will exclude them to focus on the population with positive incomes.
+
+
+
+```{r log income, results = FALSE}
+cps = cps %>%
+  filter(ftotval > 0)
+summary(cps$ftotval)
+```
+
+**[2 POINTS] for correct** `summary`. 
+
+
+#### Labor Force Status
+************************************************************************************************
+No we want an indicator for whether an individual is in the labor force or not.
+Run `table(cps$labforce)`.
+Uh-oh. Looks like there is trouble with a capital T and that rhymes with P and that stands for problem!
+
+Now we get to use a nested `ifelse` function.
+In the first `ifelse` check to see if `labforce` is NIU.
+If `TRUE`, set equal to `NA`.
+If `FALSE`, enter a new `ifelse`.
+Check to see if the remaining are not in the labor force.
+If `TRUE`, set equal to `0`.
+If `FALSE`, then set equal to `1`.
+
+
+```{r lf, echo = FALSE, results = FALSE}
+cps = cps %>%
+  mutate(lf = ifelse(labforce == 0,
+                     NA,                    # If equal to zero
+                     ifelse(labforce == 1,  # otherwise
+                            0,              # If equal to one
+                            1)))            # otherwise
+summary(cps$lf)
+```
+
+**[4 POINTS] for correct ** `summary(cps$lf)`. **DO NOT USE** `na.omit` **YET!** 
+
+Now use `na.omit(cps)` to remove the `NA` values.
+```{r naomit, echo = FALSE}
+cps = na.omit(cps)
+```
+
+
+
+#### Degree: High School or Less, Some College, Bachelor's or More.
+************************************************************************************************
+It is now time to flex your programming muscles.
+Here is the challenge: we need to create a variable that indicates whether an individual has less than or equal to a high school diploma (`hs`), some college (`sc`), or a bachelor's degree or more (`ba`).
+We can extract this information from: `educ` [(documentation)](https://cps.ipums.org/cps-action/variables/educ#codes_section).
+Save this variable as `degree`.
+
+
+```{r degree, echo = FALSE}
+cps = cps %>% 
+  mutate(degree = ifelse(educ <= 73, 
+                         'hs',
+                         ifelse(educ < 100,
+                                'sc',
+                                'ba')))
+```
+
+
+
+```{r degree results, results = FALSE}
+table(cps$degree)
+```
+
+**[4 POINTS] for correct** `table`. 
+
+### (9 Points) Independent Variables
+************************************************************************************************
+
+I am going to drastically help now.
+Check the variable documentation if you are interested.
+
+Just retype the code.
+Seriously, **don't just copy and paste it.**
+You don't learn how to ride a bike by watching others do it.
+You have to practice!
+
+#### Age
+Done
+```{r age, results = FALSE}
+summary(cps$age)
+```
+**[1 POINT] for correct ** `summary`. 
+
+#### Marital Status
+```{r marst, results = FALSE}
+cps = cps %>%
+  mutate(marst = ifelse(marst <= 3,
+                        1,
+                        0))
+summary(cps$marst)
+```
+**[1 POINT] for correct ** `summary`. #### Female
+
+```{r female, results = FALSE}
+cps$female = cps$sex - 1
+summary(cps$female)
+```
+**[1 POINT] for correct ** `summary`. 
+
+#### Any Kids
+```{r anykids, results = FALSE}
+cps$anykids = (cps$nchild > 0)*1
+summary(cps$anykids)
+```
+**[1 POINT] for correct ** `summary`. 
+
+#### Hispanic
+```{r hisp, results = FALSE}
+cps$hispan = (cps$hispan > 0)*1
+summary(cps$hispan)
+```
+**[1 POINT] for correct ** `summary`. 
+
+#### Race
+```{r Race, results = FALSE}
+cps = cps %>%
+  mutate(race = ifelse(race == 100,
+                       'White',
+                       ifelse(race == 200,
+                              'Black',
+                              ifelse(race %in% c(651, 652),
+                                     'Asian',
+                                     'Other'))))
+table(cps$race)
+```
+**[1 POINT] for correct ** `table`.
+
+#### Weeks Worked Last Year
+Done
+```{r wkswork, results = FALSE}
+summary(cps$wkswork1)
+```
+**[1 POINT] for correct ** `summary`. 
+
+
+#### Renter Status
+```{r renter, results = FALSE}
+cps$renter = ifelse(cps$spmmort == 3,
+                    1,
+                    0)
+summary(cps$renter)
+```
+**[1 POINT] for correct ** `summary`. 
+
+
+#### Health
+```{r health, results = FALSE}
+summary(cps$health)
+```
+**[1 POINT] for correct ** `summary`. 
+
+## Creating the datasets
+************************************************************************************************
+We will now be creating the three different datasets for analysis.
+
+
+### (1 Point) Let's save all that hard work!
+
+If you have made it this far, may I say [CONGRATULATIONS](https://www.youtube.com/watch?v=1Bix44C1EzY)!
+Let's save all the hard work you put in to make this dataset.
+
+```{r save, message = FALSE}
+# ?fwrite
+cps = cps %>%
+  select(ftotval, lf, degree, age, female, anykids, hispan, race, renter, health, rgdp_growth, rgdpc, hpi, coll_share, urate, occwage)
+
+fwrite(cps, paste0(path, '/hw data.csv'))
+list.files(path)
+
+```
+**[1 POINT] for correct ** `list.files`. 
+
+
+
+
+
+
+
+
+
+
+
+
+

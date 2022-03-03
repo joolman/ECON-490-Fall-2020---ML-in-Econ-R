@@ -1,0 +1,270 @@
+---
+title: "Longitudinal Clustering"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: false
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center') #, fig.width = 16, fig.height = 9)
+```
+
+I love longitudinal clustering!
+When there is something there, it is just so cool!
+We are going to use a new technique called the gap statistic to identify the number of clusters in the data. 
+We want the largest value.
+I will discuss what is going on under the hood with the gap statistic in the live lecture.
+
+The general idea is exactly the same as before.
+The only difference is in the interpretation of our "variables".
+Normally, a correctly formatted data set would have one time observation per row (long formatted data).
+Instead, we are going to create a different variables for each time period (wide formatted data).
+
+We will be working with weekly COVID19 new cases using `time_series_covid19_confirmed_US.csv` from <https://github.com/CSSEGISandData/COVID-19>.
+It will take a bit of wrangling to get into a workable format.
+The algorithm needs the data to be in a "wide" format. 
+Creating weekly averages and plotting requires a "long" format.
+We are going to look from the beginning of March through October.
+
+**An important note on scaling:** We are going to standardize these data for different states.
+However, given the context of these data, it would perhaps make more sense to do a more specific scaling such as new cases per capita to allow for comparison across states.
+Standardizing only allows us to compare shapes, not levels.
+
+```{r preliminarires, message = FALSE, warning = FALSE}
+library(cluster)
+library(data.table)
+library(lubridate)
+library(tidyverse)
+set.seed(490)
+
+setwd('C:/Users/johnj/Documents/Data/COVID-19/csse_covid_19_data/csse_covid_19_time_series')
+
+covid = fread('time_series_covid19_confirmed_US.csv')
+names(covid) = names(covid) %>% tolower
+
+# A color blind friendly palette
+cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+# The wrangle!
+plt = covid %>%
+  mutate(state = province_state) %>%
+  filter(code3 == 840 & 
+           # Removing cruise liners Grand Princess and Diamond Princess
+           !grepl('prince', state, ignore.case = TRUE)) %>%
+  # Selecting March through October
+  select(state, "3/1/20":"10/31/20") %>%
+  # Pivoting longer so we can convert to week sums
+  # and then difference for new cases
+  # and then standardize
+  pivot_longer(-state, names_to = 'date', values_to = 'cases') %>%
+  mutate(date = mdy(date)) %>%            # lubridate
+  group_by(week = week(date), state) %>%  # lubridate
+  summarise(cases = sum(cases)) %>%
+  group_by(state) %>%
+  mutate(new = c(0,diff(cases)),
+         new_std = c(scale(new))) %>%
+  filter(week != 9 & week != 44) %>% # Removing incomplete weeks 
+  mutate(date = ymd('2020-01-01') + weeks(week - 1)) %>%
+  select(state, date, new_std) 
+
+  
+ggplot(plt, aes(x = date, y = new_std, group = state)) +
+  geom_line(alpha = 0.4) + 
+  theme_minimal() +
+  theme(text = element_text(size = 16)) +
+  labs(x = 'Date', y = 'Stdz. New Weekly Cases', title = 'Standardized State Weekly New COVID19 Cases')
+```
+
+
+Yeah... I cannot tell which lines belong to which in that figure.
+Thank goodness for clustering!
+Let's pivot wider to do some clustering!
+
+```{r wider}
+clst = plt %>%
+  pivot_wider(id_cols = state, names_from = 'date', values_from = 'new_std') 
+```
+
+# K-Means
+*************************
+
+Remember, we are going to be using a technique called the gap statistic. 
+It uses bootstrapping to create standard errors for each estimate. 
+Then we choose the highest.
+Specifically, we should choose the number of clusters identified that is the maximum cluster's value minus its standard error.
+This will make more sense below.
+
+```{r kmeans}
+cl_k = clusGap(clst[, -1], FUN = kmeans, nstart = 20, K.max = 8, B = 490)
+plot(cl_k)
+```
+
+Or if we wanted to make this plot in `ggplot2`, we can do the following. Note that there is way more customization that we could do.
+
+```{r}
+df = data.frame(cl_k$Tab)
+ggplot(df, aes(x = c(1:nrow(df)), y = gap)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = gap - SE.sim, ymax = gap + SE.sim)) +
+  labs(y = 'Gap(k)', x = 'k') +
+  theme_minimal() +
+  theme(text = element_text(size = 16))
+```
+
+## Using the Gap Statistic
+***********************************
+
+From the figure above, we can see the global max is 7. 
+However, 5 is basically just as good as 7.
+We can tell by the standard error bars.
+
+
+
+```{r}
+print(cl_k, method = 'globalmax')   # 7 is the best
+print(cl_k, method = 'globalSEmax') # 5 is the actual best
+```
+
+## Fitting Identified Model
+*****************************
+
+From here, we have to refit the model.
+Remember that the data begin randomly assigned to a cluster and then are reassigned at each iteration.
+Here's to hoping we identify the same clusters!
+
+```{r}
+fit_k = kmeans(clst[, -1], 5, nstart = 20)
+fit_k$cluster
+```
+
+
+## Plotting
+************************
+
+Let's make a plot based upon the clusters identified.
+
+```{r, message = FALSE}
+
+lbls = data.frame(state = clst$state, cluster = fit_k$cluster)
+plt_k = left_join(plt, lbls)
+avgs = plt_k %>%
+  group_by(date, cluster) %>%
+  summarize(average = mean(new_std))
+ggplot() +
+  geom_line(data = plt_k, aes(x = date, y = new_std, group = state, color = as.factor(cluster)),
+            alpha = 0.6) + 
+  geom_line(data = avgs, aes(x = date, y = average, color = as.factor(cluster)),
+            size = 1.5) +
+  scale_color_manual(values = cbPalette) +
+  theme_minimal() +
+  theme(text = element_text(size = 16)) +
+  labs(x = 'Date', y = 'Stdz. New Weekly Cases', title = 'Clustered State Weekly New COVID19 Cases', color = 'Cluster')
+```
+
+# Partitioning Around Medoids
+********************************
+
+Partitioning Around Medoids is another unsupervised learning technique that is more robust than K-means.
+The function `pam` can take `dist` objects, which allows for alternative types such as the correlation distance.
+
+## Euclidean Distance
+****************************
+
+Let's just use the base distance first.
+```{r pam1}
+cl_p = clusGap(clst[, -1], FUN = pam, K.max = 8, B = 490)
+par(mfrow = c(1,2))
+plot(cl_k); plot(cl_p)
+par(mfrow = c(1,1))
+print(cl_p, method = 'globalSEmax') 
+```
+
+Here it identified 6 clusters as optimal, however, we are going to use 5 for comparability to the K-means method.
+
+
+```{r, message = FALSE}
+fit_p = pam(clst[, -1], 5)
+lbls = data.frame(state = clst$state, cluster = fit_p$clustering)
+plt_p = left_join(plt, lbls)
+avgs = plt_p %>%
+  group_by(date, cluster) %>%
+  summarize(average = mean(new_std))
+ggplot() +
+  geom_line(data = plt_p, aes(x = date, y = new_std, group = state, color = as.factor(cluster)),
+            alpha = 0.6) + 
+  geom_line(data = avgs, aes(x = date, y = average, color = as.factor(cluster)),
+            size = 1.5) +
+  scale_color_manual(values = cbPalette) +
+  theme_minimal() +
+  theme(text = element_text(size = 16)) +
+  labs(x = 'Date', y = 'Stdz. New Weekly Cases', title = 'Clustered State Weekly New COVID19 Cases', color = 'Cluster')
+```
+
+
+This produces a very similar figure.
+Remember that the whatever number the cluster gets is irrelevant.
+
+Out of curiousity, what states end up in what cluster?
+```{r}
+lbls %>% arrange(cluster)
+```
+
+
+## Correlation Distance
+*********************************
+
+Here is how you implement clustering with a correlation measure of dissimilarity.
+
+```{r pam2}
+
+pam_cor = function(x, k){
+  list(cluster = pam(as.dist(1 - cor(t(x))), k = k, diss = TRUE, cluster.only = TRUE))
+} 
+
+cl_pc = clusGap(clst[, -1], FUN = pam_cor, K.max = 8, B = 490)
+plot(cl_pc)
+print(cl_pc, method = 'globalSEmax') 
+
+dc = as.dist(1 - cor(t(clst[, -1])))
+
+
+fit_pc = pam(dc, 5, diss = TRUE)
+lbls = data.frame(state = clst$state, cluster = fit_pc$clustering)
+plt_pc = left_join(plt, lbls)
+avgs = plt_pc %>%
+  group_by(date, cluster) %>%
+  summarize(average = mean(new_std))
+ggplot() +
+  geom_line(data = plt_pc, aes(x = date, y = new_std, group = state, color = as.factor(cluster)),
+            alpha = 0.6) + 
+  geom_line(data = avgs, aes(x = date, y = average, color = as.factor(cluster)),
+            size = 1.5) +
+  scale_color_manual(values = cbPalette) +
+  theme_minimal() +
+  theme(text = element_text(size = 16)) +
+  labs(x = 'Date', y = 'Stdz. New Weekly Cases', title = 'Clustered State Weekly New COVID19 Cases', color = 'Cluster')
+
+```
+
+# Hierarchical Clustering
+**********************************
+
+And finally, here is how you perform hierarchical clustering.
+
+**Q** Are we using euclidean or correlation distance?
+
+```{r hclust}
+h_clust = function(x, k){
+  list(cluster = cutree(hclust(dist(x), method = 'average'), k = k))
+} 
+
+cl_h = clusGap(clst[, -1], FUN = h_clust, K.max = 8, B = 490)
+plot(cl_h)
+print(cl_h, method = 'globalSEmax') 
+```

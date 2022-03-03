@@ -1,0 +1,50 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "10/3/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+$$
+wage_i = wage_0 + experience_i\beta_1 + experience_i^2 \beta_2 + \epsilon_i
+$$
+
+$$
+y_i = \beta_0 + x_i \beta_1 + z_i \beta_2 + x_i z_i \beta_3 + x_i^2 +\beta_4 + z_i^2 \beta_5 +𝜖_𝑖
+$$
+`lm(y ~ poly(x, z, degree = 2), data = df)`
+
+##
+
+$$
+urate_t = \beta_0 + \text{Feb} \beta_1 + \text{Mar} \beta_2 + \text{Apr}\beta_3 + \text{May} \beta_4 + \epsilon_t
+$$
+`lm(y ~ as.factor(t), data = df)`
+$$
+urate_t = \text{Jan}\beta_0 + \text{Feb} \beta_1 + \text{Mar} \beta_2 + \text{Apr}\beta_3 + \text{May} \beta_4 + \epsilon_t
+$$
+
+`lm(y ~ as.factor(t) - 1, data = df)`
+
+##
+
+$$
+urate_t = 
+\begin{cases}
+  \beta_0 + t\beta_1 + t^2\beta_2 + \epsilon_t & \text{if } t < c\\
+  \alpha_0 + t\alpha_1 + t^2 \alpha_2 + \xi_t &  \text{if } t \geq c
+\end{cases}
+$$
+
+`lm(y ~ poly(t,2)*I(t >= c), data = df)`
+
+##
+
+$$
+y_i = \beta_0 + \sum_{j=1}^p f_j(x_{i,j}) + \epsilon_i
+$$

@@ -1,0 +1,25 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "10/10/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## R Markdown
+
+$x_i \sim N(2,100)$ $\mathbb{E}[x_i] = \mu_{x_i} = 2$ $\mathbb{V}[x_i] = \sigma^2_{x_i} = 100 \forall i$
+
+$$\frac{1}{n}\sum_{i=1}^2 x_i \neq 2$$
+
+
+$$\text{lim}_{n\rightarrow \infty} \frac{1}{n} \sum_{i=1}^n x_i = \mathbb{E}[x_i] = 2$$
+
+$\implies$ $m = \sqrt{p}$
+
+##
+
+$f_1(x)$ $y$ $e_1$

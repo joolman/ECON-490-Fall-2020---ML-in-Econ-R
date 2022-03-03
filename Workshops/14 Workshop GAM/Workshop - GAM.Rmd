@@ -1,0 +1,109 @@
+---
+title: "GAM"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', fig.width = 16, fig.height = 9)
+```
+
+The `geom_smooth()` feature in `ggplot2` using both local regression and splines to produce the smoothed line.
+Because local regression is computationally inefficient, `ggplot2` only uses it for data with 1,000 or fewer observations. Otherwise, it uses splines.
+We are going to replicate a geom_smooth plot using large number of observations.
+
+Today proceeds in three parts:
+
+1. Loading in the social explorer data and cleaning it
+2. Producing a ggplot figure with `geom_smooth`
+3. Replicating the figure manually
+
+# Social Explorer Data
+**********
+
+These data are from the 2018 ACS 5-year estimates on census block groups retrieved from Social Explorer.
+We have the median household income and population density for each of these blocks. 
+
+**Instructions**
+
+1. Load `tidyverse` and `data.table`
+2. Load the social explorer data
+3. Wrangle and clean the data
+   a. Ensure each block has positive population
+   b. Define new variables
+      i. `id` as the Geo FIPS variable
+      ii. `med_house_v` as the block's median house value
+      iii. `density` as the block's density
+   c. select the three defined variables
+
+
+```{r, echo = FALSE, message = FALSE}
+library(tidyverse)
+library(data.table)
+
+se = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/social explorer/density vs median house value.csv')
+
+se = se %>%
+  filter(SE_A00002_001 > 0) %>%
+  mutate(id          = Geo_FIPS,
+         med_house_v = SE_A14006_001,
+         density     = SE_A00002_002) %>%
+  select(id, med_house_v, density)
+dim(se)
+```
+
+# `geom_smooth()`
+**************************
+
+Produce a ggplot with the following:
+
+1. log both variables
+2. use `geom_point` with the size set to 0.1
+3. use `geom_smooth` with the color set to your favorite, set the standard errors set to false, and set the size to 2
+
+```{r ggplot1, include = FALSE}
+ggplot(se, aes(x = log(density), y = log(med_house_v))) +
+  geom_point(size = 0.1) + 
+  geom_smooth(color = 'cyan', se = FALSE, size = 2)
+```
+
+Go through the help documentation for `geom_smooth()`.
+
+1. what type of function is used?
+2. what is `"REML"`?
+3. what is `"cs"`?
+
+```{r, include = FALSE}
+# 1) a spline
+# 2) restricted maximum likelihood
+# 3) a shrinkage version of the cubic basis spline
+```
+
+# DIY `geom_smooth()`
+********************
+Now it is time to make your own `geom_smooth()`
+
+1. fit the exact same model that `geom_smooth()` uses. 
+2. obtain the fitted values as `yhat`
+3. obtain the x values as `x`
+4. create a data frame `df` that combines `yhat` and `x`
+5. produce the same `geom_point()` figure as above 
+6. add `geom_line()` with the data set to `df`, the aesthetics set to `x` and `yhat` accordingly, set the size to 2, and set the color 
+
+
+```{r DIY, include = FALSE}
+fit_smooth = mgcv::gam(log(med_house_v) ~ s(log(density), bs = "cs"), data = se,  method = 'REML')
+yhat = fit_smooth$fitted.values
+x    = fit_smooth$model$`log(density)`
+df = data.frame(x = x, yhat = yhat)
+
+ggplot(se, aes(x = log(density), y = log(med_house_v))) +
+  geom_point(size = 0.1) + 
+  geom_line(data = df, aes(x = x, y = yhat), color = 'cyan', size = 2)
+```
+
+

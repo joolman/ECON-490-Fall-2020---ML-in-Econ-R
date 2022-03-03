@@ -1,0 +1,76 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "9/20/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+$$
+\text{min}_\theta \text{ } L(y_i, \mathbf{x_i})
+$$
+
+$$
+L(y_i, \mathbf{x_i}) = \frac{1}{n}\sum_{i=1}^n (y_i - \hat{f}(\mathbf{x_i}))^2 
+$$
+
+$$
+\hat{f}(\mathbf{x_i}) = \beta_0 + x_{i,1}\beta_1 + ... + \beta_p x_{i,p} + \epsilon_i
+$$
+
+
+
+$$
+L(y_i, \mathbf{x_i}) = \frac{1}{n} \sum_{i=1}^n \mathbb{I}\{y_i \neq \hat{f}(\mathbf{x_i})\}
+$$
+$\theta = \beta$
+$\theta = k$
+
+##
+
+
+$$
+\hat{\beta}^{ridge} = \text{argmin } \left( \sum_{i=1}^n y_i - \beta_0 - \sum_{j=1}^p x_{i,j}\beta_j \right)^2 
+$$
+subject to
+$$
+\sum_{j=1}^p \beta_j^2 \leq t
+$$ 
+$$
+\hat{\beta}^{ridge} = \text{argmin } \left( \sum_{i=1}^n y_i - \beta_0 - \sum_{j=1}^p x_{i,j}\beta_j \right)^2 + \lambda\sum_{j=1}^p |\beta_j|^2 
+$$
+
+##
+$$
+\hat{\beta}^{lasso} = \text{argmin } \left( \sum_{i=1}^n y_i - \beta_0 - \sum_{j=1}^p x_{i,j}\beta_j \right)^2 
+$$
+subject to
+$$
+\sum_{j=1}^p |\beta_j| \leq t
+$$ 
+$$
+\hat{\beta}^{lasso} = \text{argmin } \left( \sum_{i=1}^n y_i - \beta_0 - \sum_{j=1}^p x_{i,j}\beta_j \right)^2 + \lambda\sum_{j=1}^p |\beta_j| 
+$$
+
+
+##
+$$
+\tilde{x}_{i,j} = \frac{x_{i,j} - \bar{x}_j}{\sqrt{ \sum_{i=1}^n (x_{i,j} - \bar{x}_j)^2}}
+$$
+$\infty \implies$
+
+
+
+
+
+
+
+
+
+
+

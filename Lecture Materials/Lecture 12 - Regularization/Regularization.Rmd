@@ -1,0 +1,274 @@
+---
+title: "Regularization"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+
+The data that we are working with do not have a crazy number of covariates, however, we still might benefit from regularization. 
+As we have seen from some of our previous model selection, there appears to be some parameters that do not contribute much to the predictive power in the AHS data.
+This does not seem to be the case in the CPS data, however.
+This would suggest lasso may perform better in the AHS and ridge may perform better in the CPS. 
+
+Assuming that we had not performed the prior analysis, there might not be any reason to have a leaning towards lasso or ridge a priori.
+Regardless, let's dig in!
+
+# Setup
+******************
+We are going to need another package: `glmnet`.
+This contains both ridge regression, lasso regression, and elastic-net.
+Elastic net is simply a combination of ridge and lasso like so:
+
+$$
+\hat{\beta}^{enet} = \text{argmin } \left( \sum_{i=1}^n y_i - \beta_0 - \sum_{j=1}^p x_{i,j}\beta_j \right)^2 + \lambda \left( \frac{1-\alpha}{2}  \sum_{j=1}^p \beta_j^2 + \alpha \sum_{j=i}^p |\beta_j| \right)
+$$
+where $\alpha \in [0,1]$. 
+Notice if $\alpha = 0$, then we have ridge regression. If $\alpha = 1$, then we have lasso.
+Elastic net is thus a generalized hybrid of the two methods, where $\alpha$ is another hyperparameter that we can optimize.
+
+
+```{r, message = FALSE}
+library(tidyverse)
+library(glmnet)
+library(caret)     
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/lecture data continuous.csv')
+
+set.seed(490)
+```
+
+I think we should also create a function to calculate RMSE and the error rate.
+I don't feel like typing it out, time and time again.
+```{r}
+rmse = function(y, yhat){
+  sqrt(sum((y-yhat)^2)/length(y))
+}
+
+error = function(y, yhat){
+  sum(y != yhat)/length(y)
+}
+
+```
+Now that should save us some time in the future!
+
+## Sample Splitting
+*****************
+As per usual:
+```{r}
+train = sample_frac(ahs, size = 0.75)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+
+# Regularization
+**************
+Let's see how these models compare.
+We are also going to jump straight in with cross-validation.
+
+**Important:** in order to use `glmnet()`, we need to create the $\mathbf{X}$ matrix and $y$ vector prior to use. 
+No formulas :/
+
+Also, remember with regularization standardizes the variables before fitting them. 
+See `?glmnet`.
+
+## Ridge
+*********************
+Remember, ridge will perform well if most parameters are important.
+Let's do 5 repeats of 5-fold cross-validation.
+The parameter we are interested in sweeping over is `lambda` ($\lambda$).
+We will start with the same full model.
+
+```{r}
+# Cross-validation setup
+trControl = trainControl(method = 'repeatedcv',
+                         repeats = 5,
+                         number = 5)
+
+
+x = model.matrix(log(value) ~ log(cost)*hoa + npeople + beds*baths + log(eqvval) +
+                   lotsize + yos + garage + bld + poly(math, 2) + crime + hinf + houtf,
+                 data = train)
+y = log(train$value)
+
+
+fitr = train(x,
+             y,
+             method = 'glmnet',
+             trControl = trControl,
+             tuneGrid = expand.grid(alpha = 0, lambda = 10^seq(-2, 5, length = 50)),
+             data = train)
+
+fitr$bestTune
+```
+The warning message comes from fitting the model with large values of $\lambda$.
+This is happening because the model didn't converge.
+Reducing to `lambda = 10^seq(-2, 2, length = 50))` does not produce an error.
+To show this to you:
+```{r}
+coef(glmnet(x, y, alpha = 0, lambda = 10^5, data = train))
+```
+All of the coefficients are approaching the *effectively* zero range. They have been over shrunk like a woolhat in the drier!
+
+*Important:* the chosen values of $\lambda$ are both data and model specific.
+It is best to start with a larger range like we did above.
+Then you can narrow down.
+
+
+From these outputs, we see that we are using a relatively small $\lambda$, which means we have a preference for the OLS model.
+Once we have the selected model, we should refit it on the complete `train` data.
+There are more observations, which leads to less noisy predictions.
+
+```{r}
+lambda = fitr$bestTune$lambda
+fitr = glmnet(x, y, alpha = 0, lambda = lambda)
+coef(fitr)
+```
+Just for comparison, here are the coefficients for OLS
+```{r}
+solve(t(x) %*% x)%*% t(x)%*%y
+```
+
+## Lasso
+********************************
+So, time for the same thing, but with $\alpha = 1$.
+
+```{r}
+# Using sthe same trControl
+
+# x and y are already defined
+
+fitl = train(x,
+             y,
+             method = 'glmnet',
+             trControl = trControl,
+             tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-2, 5, length = 50)),
+             data = train)
+
+fitl$bestTune
+```
+Oh dear, looks like we hit the lower bound of lambda.
+Let's first look at the coefficients for the higher values of lambda.
+```{r}
+coef(glmnet(x, y, alpha = 1, lambda = 10^5, data = train))
+```
+All of these coefficients have been assigned a zero value. 
+
+It really does appear that OLS might be the best option for these data.
+For robustness, we should set smaller values of lambda.
+
+```{r}
+fitl = train(x,
+             y,
+             method = 'glmnet',
+             trControl = trControl,
+             tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-5, -1, length = 50)),
+             data = train)
+
+fitl$bestTune
+```
+A tiny $\lambda$!
+
+Fitting the data on the full train set.
+```{r}
+lambda = fitl$bestTune$lambda
+
+fitl = glmnet(x, y, alpha = 1, lambda = lambda)
+coef(fitl)
+```
+How interesting! Even with such a small $\lambda$, it still trims down on the variables!
+Mustn't be close enough to zero yet!
+
+## Elastic Net
+*******
+
+Might as well do an elastic net regularization while we are at it!
+From the information we have obtained before, I will set the grid for $\lambda$ accordingly.
+
+```{r}
+system.time(
+  { 
+  fite = train(x, y,
+               method = 'glmnet',
+               trControl = trControl,
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 21),
+                                      lambda = 10^seq(-5, 1, length = 50)),
+               data = train)
+  }
+)
+fite$bestTune
+```
+This took a while to train because we are using a *relatively* large grid.
+```{r}
+expand.grid(alpha = seq(0, 1, length = 21),
+            lambda = 10^seq(-5, 1, length = 50)) %>%
+  dim
+
+expand.grid(alpha = seq(0, 1, length = 21),
+            lambda = 10^seq(-5, 1, length = 50)) %>%
+  head
+```
+
+
+Now to fit the final model on `train`.
+```{r}
+a = fite$bestTune$alpha
+l = fite$bestTune$lambda
+fite = glmnet(x, y, alpha = a, lambda = l)
+
+coef(fite)
+```
+If you notice that same coefficients have been "selected" as lasso. Neato!
+
+# Model Comparison
+***********************
+
+We will finally compare how these models perform at predicting on the test set!
+When predicting with `glmnet()`, we need to specify the value of $\lambda$ as `s`.
+Fortunately, this is already attached to the fitted object.
+See `?predict.glmnet` for more details.
+
+For completeness, we will also run an OLS model using the "selected" parameters.
+We need to do the same $\mathbf{X}$ and $y$ split.
+RMSE time!!
+
+```{r}
+x_test = model.matrix(log(value) ~ log(cost)*hoa + npeople + beds*baths + log(eqvval) +
+                        lotsize + yos + garage + bld + poly(math, 2) + crime + hinf + houtf,
+                 data = test)
+y_test = log(test$value)
+
+yhat_ridge = predict(fitr, s = fitr$lambda, newx = x_test)
+yhat_lasso = predict(fitl, s = fitl$lambda, newx = x_test)
+yhat_elastic = predict(fite, s = fite$lambda, newx = x_test)
+
+# Obtaining the selected coefficients
+yhat_ols = lm(log(value) ~ log(cost) + hoa + npeople + beds + baths + log(eqvval) +
+                lotsize + yos + garage  + poly(math, 2) + 
+                I(bld == 'Attached SFH') + I(bld == 'Detached SFH') + I(bld == 'Mobile Home'), train) %>%
+  predict(test)
+
+cat('Ridge RMSE:', rmse(y_test, yhat_ridge), '\n')
+cat('Lasso RMSE:', rmse(y_test, yhat_lasso), '\n')
+cat('Elastic Net RMSE:', rmse(y_test, yhat_elastic), '\n')
+cat('OLS RMSE:', rmse(y_test, yhat_ols), '\n')
+```
+
+
+From here, it also looks like OLS on the "selected" model is the winner!
+
+# Other Regularization
+**********
+
+So far, we have only done regression regularization.
+However, we can perform regularization on just about *any* model.
+The `glmnet()` can be applied to binomial logistic regression, for example, by specifying `family = 'binomial'`.
+For other models, you just need to head over to Google (or Bing if you are one of those...) to find a package that can do what you want to do!

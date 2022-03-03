@@ -1,0 +1,36 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "9/11/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## R Markdown
+
+$f(X)$
+
+$\vdots$
+
+$$
+\text{CV}_{(k)} = \frac{1}{k} \sum_{j=1}^k \text{MSE}_j
+$$
+
+$$
+\text{MSE}_j = \frac{1}{n_k}\sum_{i \in k} (y_i - \hat{y}_i)^2 
+$$
+
+##
+
+$$
+\text{CV}_{(k)} = \frac{1}{k}\sum_{j=1}^k \text{Err}_j
+$$
+
+
+
+$$
+\text{Err}_j = \frac{1}{n_k} \sum_{i \in k} I\{y_i \neq \hat{y}_i\}
+$$

@@ -1,0 +1,240 @@
+---
+title: "Ensemble Learning"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', fig.width = 16, fig.height = 9)
+```
+
+Ensemble learning a machine learning technique that aggregates the predictions of other ML models (base learners). 
+The general intuition is that if you ask a bunch of economists what they think the unemployment rate will be in the next jobs report, on average they will be close to being right.
+
+
+Today, we are going to work on a classification problem.
+In theory there are an infinite number of ways to aggregate the base learner predictions.
+Here we are going to use:
+
+1. Averaging
+2. Majority voting
+3. Model aggregating via RF (other models are available)
+
+I have been unable to find packages that perform these well, so we will do some of the work manually.
+
+# Setup
+*************************
+
+
+
+```{r, message = FALSE}
+library(caret)
+library(tidyverse)
+library(class)
+library(glmnet)
+library(randomForest)
+set.seed(490)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data discrete.csv') 
+ahs$renter = as.factor(ahs$renter)
+
+train = sample_frac(ahs, 0.8)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+# Base Learner Fitting
+********************************************
+Here we are going to fit a few different models for our base learners.
+```{r formula}
+f = renter ~ log(cost) + hoa + log(hinc) + beds + baths  + lotsize + yos + condo + garage +
+           bld + crime + hinf + houtf + as.factor(npeople)
+```
+
+## KNN
+****************************************************
+
+```{r knn}
+x_train = model.matrix(f, train)
+y_train = train$renter
+
+trControl = trainControl(method = 'cv',
+                         number = 5)
+fit_knn_cv = train(x_train, 
+                   y_train,
+                   method = 'knn',
+                   trControl = trControl,
+                   tuneGrid = expand.grid(k = c(5, 10, 15, 20, 30)))
+
+fit_knn_cv$bestTune
+
+x_test  = model.matrix(f, test)
+y_test  = test$renter
+
+k_best = fit_knn_cv$bestTune$k
+
+fit_knn = knn(x_train, x_test, y_train, k = k_best)
+( accuracy_knn = mean(fit_knn == test$renter) )
+```
+
+## Logistic Regression
+****************************
+
+```{r}
+fit_lr_cv = train(x_test,
+                  y_test,
+                  method = 'glmnet',
+                  trControl = trControl,
+                  tuneGrid = expand.grid(alpha = 1,
+                                         lambda = 10^(seq(-8, 1, by = 50))),
+                  family = 'binomial')
+
+fit_lr_cv$bestTune
+
+
+fit_lr = glmnet(x_train, y_train, alpha = 1, lambda = fit_lr_cv$bestTune$lambda, family = 'binomial')
+coef(fit_lr)
+yhat_lr = predict(fit_lr, x_test, type = 'class')
+
+( accuracy_lr = mean(yhat_lr == test$renter) )
+```
+
+
+## Random Forest
+*********************************
+We have 14 variables in our `f`
+```{r random forest}
+( m = sqrt(14) %>% round )
+
+fit_rf = randomForest(x_train, y_train, mtry = m, ntree = 490)
+
+yhat_rf = predict(fit_rf, x_test)
+
+( accuracy_rf = mean(yhat_rf == test$renter) )
+```
+
+There we have it, three different base learners with pretty decent predictions.
+Can we do better?
+
+# Ensemble Learning
+**************************************
+
+Just as a reminder, we are going to use three different kinds of stacking for our ensemble:
+
+1. Averaging
+2. Majority voting
+3. Model aggregating via RF (other models are available)
+
+*Note that different ensemble methods will perform better or different data.*
+
+## Averaging
+*******************************
+
+To perform base learner averaging, we take the predicted probabilities from each model, average, and then predict the max.
+For the life of me, I cannot get `knn()` to predict probabilities, so we will use the workaround below:
+
+```{r}
+trControl = trainControl(method = 'cv',
+                         number = 1)
+
+knn_fit = train(x_train, y_train,
+                method = 'knn',
+                tuneGrid = expand.grid(k = k_best))
+
+prob_knn = predict(knn_fit, x_test, type = 'prob')[, 2]
+prob_lr  = predict(fit_lr,  x_test, type = 'response') %>% c
+prob_rf  = predict(fit_rf,  x_test, type = 'prob')[, 2]
+
+prob = data.frame(knn = prob_knn,
+                  lr  = prob_lr,
+                  rf  = prob_rf)
+prob$prob = apply(prob, 1, mean)
+prob$true = prob$prob >= 0.5
+
+
+accuracy_knn; accuracy_lr; accuracy_rf
+( accuracy_average = mean(prob$true == test$renter) )
+```
+
+Looks like RF is the better model here.
+
+
+
+## Majority Voting
+**********************************************
+Unfortunately, `R` does not have a function to identify the mode, so we get to make one.
+
+```{r}
+mode <- function(x) {
+   xval <- unique(x)
+   xval[which.max(tabulate(match(x, xval)))]
+}
+```
+
+```{r}
+vote = data.frame(knn = fit_knn, 
+                  lr = as.factor(yhat_lr),
+                  rf = yhat_rf)
+vote$mode = apply(vote, 1, mode)
+
+
+accuracy_knn; accuracy_lr; accuracy_rf
+( accuracy_vote = mean(vote$mode == test$renter) )
+```
+
+Again, looks like RF is winning!
+
+## Model Aggregating
+******************************
+Finally, we are going to use model weighting to produce our ensemble.
+Here we are going to use RF, but we can use any model in practice.
+The first step is to grab the predictions from base learners on `train`.
+This is going to be the training data to fit our RF aggregator.
+Then we will predict on the test data.
+
+```{r}
+y_train_knn = predict(knn_fit, x_train)
+y_train_lr  = predict(fit_lr,  x_train, type = 'class') %>% as.factor
+y_train_rf  = predict(fit_rf,  x_train)
+
+train_base = data.frame(x_knn = y_train_knn, 
+                        x_lr = y_train_lr, 
+                        x_rf = y_train_rf, y = y_train)
+
+ensemble_rf = randomForest(y ~ ., train_base, mtry = 3, ntree = 490)
+
+test_base = data.frame(x_knn = fit_knn, 
+                       x_lr = as.factor(yhat_lr), 
+                       x_rf = yhat_rf)
+
+yhat_ensemble_rf = predict(ensemble_rf, test_base, mtry = 3)
+
+accuracy_knn; accuracy_lr; accuracy_rf
+mean(yhat_ensemble_rf == test$renter)
+```
+
+How unusual! 
+It appears the best we can do with the ensemble learning approach is a random forest.
+
+I promise, these models do perform better in general.
+The winner of the $1,000,000 Netflix recommender system competition used an ensemble method on over 100 models.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,31 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "10/4/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## R Markdown
+
+$y = 1$
+
+$\leq$
+
+Divide predictor space $X_1, X_2, ... , X_p$ into $J$ distinct, non-overlapping regions $R_1, R_2, ... , R_J$.
+
+For each $R_j$, predict the mean of $y$.
+
+$$
+\sum_{j=1}^J \sum_{i \in R_j} (y_i - \hat{y}_{R_j})^2
+$$
+
+##
+
+$$
+\sum_{m=1}^{|T|} \sum_{x_i \in R_m} (y_i - \hat{y}_{R_m})^2 + \alpha |T|
+$$
+$T \subset T_0$

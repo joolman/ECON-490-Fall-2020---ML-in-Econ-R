@@ -1,0 +1,22 @@
+---
+title: "Bootstrap"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+
+
+##
+$${{n}\choose{k}} = \frac{n!}{k!(n-k)!}$$
+
+$${{5}\choose{2}} = \frac{5*4*3*2*1}{2*1*(3*2*1)} = \frac{5*4}{2*1} = 10$$
+

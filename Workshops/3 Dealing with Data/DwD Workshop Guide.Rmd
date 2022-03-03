@@ -1,0 +1,47 @@
+---
+title: "Dealing with Data Workshop"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Diretions
+Download `Required: Workshop Data` from Compass > Module 1: Intro to R and ML > Lecture 3 Dealing with Data > Workshop Data and Instructions.
+We will be creating a plot of unemployment statistics from January 2020 to July 2020 by different aggregated industries.
+
+Open VS Code.
+Have one person share a link and load in the data.
+Create a new variable in the CPS data called `agg_ind` that is a `character` of different aggregated industry codes from the variable `ind` matching the industry name from the table below.
+There are 15 industries to make. 
+Work together to create the `agg_ind` variable.
+
+**To Do:**
+
+1. Create an industry level plot of unemployment rates.
+2. What were the two industries that experienced the largest increase in unemployment rates?
+   a. What was their peak unemployment levels?
+
+[Click here for the IPUMS employment status variable documentation.](https://cps.ipums.org/cps-action/variables/EMPSTAT#codes_section)
+
+
+|    | Industry Code | Industry Name   |
+|:--:|:-------------:|-----------------|
+|  1 |   0170-0940   | AgForFshHntMing |
+|  2 |      0770     | Construction    |
+|  3 |   1070-3990   | Manufacturing   |
+|  4 |   4070-4590   | WholesaleTrade  |
+|  5 |   4670-5790   | RetailTrade     |
+|  6 |   6070-6390   | TrnspWrhouse    |
+|  7 |   0570-0690   | Utilities       |
+|  8 |   6470-6780   | Information     |
+|  9 |   6870-7190   | FIRE            |
+| 10 |   7270-7570   | ProfSciMang     |
+| 11 |   7580-7790   | AdminWaste      |
+| 12 |   7860-7890   | Education       |
+| 13 |   7970-8470   | HealthSocial    |
+| 14 |   8560-8590   | ArtsEntRec      |
+| 15 |   8660-8690   | Hospitality     |

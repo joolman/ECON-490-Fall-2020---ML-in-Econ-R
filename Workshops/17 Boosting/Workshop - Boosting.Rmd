@@ -1,0 +1,128 @@
+---
+title: "Boosting"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+
+In the lecture, we used a boosted decision trees to fit a continuous variable.
+Today, we are going to predict the `neople` variable as a multiclass outcome.
+
+# Setup
+
+**Read:** `xgboost()` is a weird function. To do multiclass predictions, it requires numerical integers starting from 0. But the `caret` package that we use for cross-validation requires a `character` or `factor` type object.
+So, we are going to convert the outcome variable in the code below:
+
+
+```{r, message = FALSE}
+library(xgboost)
+library(caret)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data discrete.csv') 
+
+ahs = ahs %>% 
+  mutate(npeople = as.character(npeople - 1)) # The weird part I was talking about
+
+train = sample_frac(ahs, 0.8)
+test  = anti_join(ahs, train, by = 'id') 
+
+f = npeople ~ log(cost) + log(hinc) + beds + baths + lotsize + yos + hoa + condo + garage + bld + crime + math + hinf + houtf
+```
+
+# Cross-Validation
+
+Find the best parameters using:
+
+- 5-fold CV
+- `f` and `train`
+- `method = xgbTree`
+- over a grid of parameters
+  - `eta = 0.1`
+  - `max_depth = c(1:3)`
+  - `nrounds = seq(40, 200, length = 5)`
+  - `gamma = 0`
+  - `colsample_bytree = 1`
+  - `min_child_weight = 1`
+  - `subsample = 1`
+- `metric = "Accuracy"`
+
+Save the cv object as `fit_xgb_cv`.
+
+
+```{r, include = TRUE}
+trControl = trainControl(method = 'cv',
+                         number = 5)
+
+fit_xgb_cv = train(f, train,
+          trControl = trControl,
+          method = 'xgbTree',
+          tuneGrid = expand.grid(eta       = 0.1,
+                                 max_depth = c(1:3),
+                                 nrounds   = seq(40, 200, length = 5),
+                                 gamma     = 0,
+                                 colsample_bytree = 1,
+                                 min_child_weight = 1,
+                                 subsample = 1),
+          metric = 'Accuracy')
+
+fit_xgb_cv$bestTune
+```
+
+## Fitting the best-tuned model
+
+Create
+
+- `x_train` and `x_test` using `f` and `model.matrix()`
+- `y_train` and `y_test` remembering to convert them back to `numeric`s
+
+Fit the extreme boosted model using the identified `eta`, `max_depth`, and `nrounds`.
+Also, use this:
+
+`params = list("objective" = "multi:softprob", "eval_metric" = "mlogloss", "num_class" = 3)`
+
+```{r, include = TRUE}
+x_train = model.matrix(f, train)
+y_train = train$npeople %>% as.numeric
+
+x_test = model.matrix(f, test)
+y_test = as.numeric(test$npeople)
+
+bt = fit_xgb_cv$bestTune
+
+fit_xgb = xgboost(x_train, y_train,
+                  eta = bt$eta,
+                  max_depth = bt$max_depth,
+                  nrounds = bt$nrounds,
+                  params = list("objective" = "multi:softprob",
+                                "eval_metric" = "mlogloss",
+                                "num_class" = 3),
+                  print_every_n = 20)
+```
+
+## Error rate
+
+So, the prediction from `fit_xgb` is also atypical, so here is some code. 
+Try to understand what I did below. 
+Then run it.
+
+```{r}
+yhat = predict(fit_xgb, x_test) %>%
+  matrix(ncol = 3, byrow = TRUE)
+
+sum(yhat[1, ])
+
+pred = apply(yhat, 1, which.max) - 1
+
+mean(pred != y_test)
+```

@@ -1,0 +1,71 @@
+---
+title: "Time Series Sample-Splitting and CV"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this markdown, we are going set up predicting the daily closing exchange rate of the Great British Pound (GBP) with respect to the United States Dollar denoted by $e$. 
+We will use lags of the exchange rate and the percent change from open to close of the S&P 500 denoted by $s$ as covariates. 
+The model will look like this:
+
+$$e_{t+2} = \alpha_0 + e_t \alpha_1 + e_{t-1} \alpha_2 + s_t\alpha_3 + \eta_t$$
+We could also include the volume of these indices or lags of these indices. 
+We could also (also) include other daily data.
+For demonstration purposes, this is sufficient.
+
+The data are obtained from Yahoo finance.
+
+```{r, message = FALSE,}
+library(tidyverse)  # I can't live without it. I don't have a problem... I can quit whenever I want!
+library(lubridate)  # dates
+
+e = read.csv('C:/Users/johnj/Documents/Data/yahoo finance/gbp per usd.csv')
+s = read.csv('C:/Users/johnj/Documents/Data/yahoo finance/snp 500.csv')
+
+dim(e); dim(s)
+
+head(e);head(s)
+```
+
+Cleaning and wrangling:
+```{r}
+df_e = e %>% 
+  mutate(date = ymd(Date),
+         e    = Close,
+         e_p2 = lead(e, n = 2), # our outcome variable
+         e_m1 = lag(e, n = 1)) %>% # ymd (year month day) from lubridate
+  select(e, e_p2, e_m1, date)
+  
+df_s = s %>%
+  mutate(s    = (Close - Open)/Open*100,
+         date = ymd(Date)) %>%
+  select(s, date)
+  
+df = tibble(left_join(df_e, df_s, by = 'date')) # for printing
+rm(df_e, df_s, e, s) # I don't like a crowded environment
+
+df
+```
+
+Notice that each row now has the variables we need to estimate the model.
+That means each row has the variables we need to run the model.
+However, we also have an `NA`.
+Since each row has all the information we need for that "date", we can omit the ‘NA’s.
+
+```{r}
+df = na.omit(df)
+df
+```
+Notice that we lost 698 rows. 
+This is okay because we know that each row has all the information we need.
+From here, we can perform sample splitting and (repeated) cross-validation as normal.
+
+
+

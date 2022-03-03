@@ -1,0 +1,162 @@
+---
+title: "HW5 - Local Spline Time"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: false
+    toc_depth: 3
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+rm(list = ls())
+```
+
+**************
+
+**************
+
+**************
+
+Please submit as a print-to-pdf of the knitted html document as `HW5 firstname lastname.pdf`.
+Put you answers inside appropriate section headers in your document.
+Ensure your first and last name is in the document title area.
+
+Please look through your document and fix functions that span beyond the page width.
+
+**************
+
+**************
+
+**************
+
+Splines are particularly useful for longitudinal unsupervised learning because it allows us to cluster different trends after standardization.
+Local regression is the go-to for non-linear smoothing of data.
+Both a produce a non-linear transformation.
+Trevor Hastie and Robert Tibshirani (where do **you** know these names from?) invented generalized additive models.
+Okay, enough fun facts.
+
+This will (hopefully) be the shortest homework of the semester.
+
+# Theory
+**************************************************************
+The **points** in this section are assigned based upon your intuitive explanation. 
+No math or formulas are required.
+
+Each question is a large percentage of points. Be sure you answers are correct.
+
+## [10 points] Knots
+**************************************************************
+
+**What is a "knot" in the splines literature?**
+
+Your answer here.
+
+## [10 points] Natural Splines - Part I
+**************************************************************
+
+**Suppose we have a spline constructed of polynomials of degree $d$.**
+**What is the defining feature of a spline regarding their derivatives at internal knots?**
+
+Your answer here.
+
+## [10 points] Natural Splines - Part II
+**************************************************************
+**What is the difference between a regular spline and a natural spline at their endpoints?**
+
+Your answer here.
+
+## [10 points] Local Regression
+**************************************************************
+
+**Intuitively (not in math), how is local regression fit?**
+
+Your answer here.
+
+## [20 points] GAM
+**************************************************************
+**In your own words (you may copy but you may not paste), what are two benefits of GAMs?**
+
+Your answer here.
+
+# Application
+**************************************************************
+
+The application is straightforward:
+
+1. Load packages, load data, split data
+2. Fit a model the predicts the logarithm of `ftotval` 
+
+## [20 points] Setup
+**************************************************************
+
+- **[5 points]** Load the package `gam`, `modelr` (for `mse()`)
+  - you may use more packages if you wish
+- **[5 points]** Load the homework data as `cps`
+- **[5 points]** Set the seed to 490
+- **[5 points]** Split the data such that `train` is 80% of the sample size
+
+```{r, message = FALSE, include = FALSE,}
+library(gam)
+library(modelr)
+library(tidyverse)
+cps = read.csv("C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data/hw data.csv")
+
+set.seed(490)
+
+train = sample_frac(cps, .80) # I like writing out the hundredths place, not necessary
+test  = anti_join(cps, train)
+```
+
+## [20 points]
+**************************************************************
+
+To do a quasi-replication of a Kaggle competition, your grade is based upon the performance of your model:
+
+- **[0 points]** MSE $> 1$
+- **[5 points]** MSE $\in [1, 0.98)$
+- **[10 points]** MSE $\in [0.98, 0.97)$
+- **[15 points]** MSE $\in [0.97, 0.96)$
+- **[20 points]** MSE $\in [0.96, 0.9572549]$ (The best I could do)
+- **[25 points]** MSE $\in (0.9572549, 0.95)$
+- **[30 points]** MSE $\leq 0.95$
+
+Criteria:
+
+- Use `lm()` to fit your model
+- You may use splines, interactions, and transformations of any variables in the data set 
+- Use `mse()` from the package `modelr` to produce the MSE values
+- **You must show your** `formula` **to receive any points** (i.e `log(ftotval) ~ 1` as displayed below)
+- **ONLY SHOW THE FINAL MODEL**
+
+See the example below on what we are expecting to see.
+
+```{r}
+####################
+## -------------- ##
+## An example fit ##
+## -------------- ##
+####################
+
+fit = lm(log(ftotval) ~ 1, data = train)    # fit on train
+mse(fit, test)                              # MSE on test
+```
+
+```{r, include = FALSE}
+fit = lm(log(ftotval) ~ occ*s(age) + lf*female*anykids*race*hispan  + bs(health) + 
+  ns(rgdp_growth, df = 10) + bs(rgdpc, df = 8) + bs(hpi, df = 10) + ns(urate),
+  data = train)
+mse(fit, test)
+```
+
+
+
+
+
+
+
+
+
+

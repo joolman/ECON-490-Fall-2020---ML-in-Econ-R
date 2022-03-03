@@ -1,0 +1,74 @@
+---
+title: "Workshop - Subset Selection"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We are going to use the subset selection on a data set from the [National Longitudinal Survery of Youth 1979 (NLSY79)](https://www.nlsinfo.org/investigator/pages/login) to predict childhood Armed Forces Qualification Test (AFQT) percentile scores.
+This is commonly used as a proxy for IQ.
+
+The NLSY has an insane amount of RHS variables.
+This workshop is all about selecting the important variables.
+We will use forward stepwise selection, backward stepwise selection, and best subset selection on the entire dataset.
+Then we will compare the chosen parameters in each model.
+
+
+# Instructions
+***
+
+1. Load the package `leaps` and the dataset.
+2. Using `regsubsets` with `nvmax` set to `Inf`, perform forward stepwise selection using the `formula` of `afqt ~ .`
+   a. Save the coeficients for the model with the best BIC score
+3. Repeat part 2 for backward stepwise selection
+4. Repeat part 2 for best subset selection
+5. Compare the selections
+6. Fit a model with selected coeficients and produce a summary
+
+
+```{r, include = TRUE}
+library(leaps)
+nlsy = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/nlsy/nlsy_workshop_data.csv')
+
+
+forw_fit = regsubsets(afqt ~ ., data = nlsy, method = 'forward', nvmax = Inf)
+sforw = summary(forw_fit)
+coef(forw_fit, which.min(sforw$bic))
+
+back_fit = regsubsets(afqt ~ ., data = nlsy, method = 'backward', nvmax = Inf)
+sback = summary(back_fit)
+coef(back_fit, which.min(sback$bic))
+
+best_fit = regsubsets(afqt ~ ., data = nlsy, method = 'exhaustive', nvmax = Inf)
+sbest = summary(best_fit)
+coef(best_fit, which.min(sbest$bic))
+
+fit = lm(afqt ~ glasses_contacts + mother_yos + father_yos + expected_yos + planning +
+           working_women_juvenile + race + self_esteem + height + personal_computer + 
+           yos + age + life_satisfaction + jobs_num_tot + alcohol,
+         data = nlsy)
+summary(fit)
+
+cat(names(coef(forw_fit, which.min(sforw$bic))), sep = ' + ')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

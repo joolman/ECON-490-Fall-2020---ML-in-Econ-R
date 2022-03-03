@@ -1,0 +1,746 @@
+---
+title: "Dealing with Data"
+author: "Applied Machine Learning in Economics"
+date: "9/2/2020"
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this script, we will be wrangling and cleaning our dataset that we will use for our class examples.
+This will involve mergin together multiple data sets.
+Dealing with data can be tedious, but it is an essential part of an analytical project.
+
+See the files on the course website for the crosswalks.
+A crosswalk matches one geographic unit (school districts) to another (counties).
+I often save these as objects named `cw`.
+
+# Overview 
+*******************************************************************************
+
+Data Sources:
+
+- [AHS](https://www.census.gov/programs-surveys/ahs/data.html) 2017 National PUF files
+  - [Codebook](https://www.census.gov/programs-surveys/ahs/tech-documentation/codebooks.html)
+  - [Mini codebook](https://www.census.gov/cgi-bin/nbroker?_service=sas_serv1&_debug=0&_program=cedr.sasapp_main.sas&s_appName=ahsdict&s_searchvalue=&s_year=&s_topic=&s_variable=&s_available=&s_minicode=E_2017&variable_detail_dialog=&variable_detail=&variable_question_text=&s_output=mpdf&menu=variable_table&s_orderBy=topic_number%20asc,%20subtopic_number%20asc,variable_number%20asc)
+- [IRS](https://www.irs.gov/statistics/soi-tax-stats-migration-data)
+  - 2015-2016 county-to-county inflows
+  - 2016-2017 county-to-county outflows
+- [FBI](https://www.ucrdatatool.gov/)
+  - table 6
+- [Department of Education](https://www2.ed.gov/about/inits/ed/edfacts/data-files/index.html)
+
+ID Variables
+
+1. Metropolitan Statistical Area (MSA) Code
+2. MSA Name
+
+Dependent Variables:
+
+1. House market value (continuous)
+2. Renter indicator (binay)
+3. Number of people in household (class)
+
+Covariates:
+
+- Continuous
+  1. Household income
+  2. Monthly housing cost
+  3. Number of bedrooms
+  4. Number of bathrooms
+  5. Equivalent house value
+  6. Year built
+  7. Lot size
+  8. Highest years of schooling in household
+  9. MSA Violent crime
+  10. MSA math proficiency
+  11. MSA household outflows
+  12. MSA household inflows
+- Discrete
+  1. HOA membership indicator
+  2. Condo indicator
+  3. Garage indicator
+  4. Household type
+  
+  
+
+# Preliminary Setup
+*********************************************************************************
+
+## Loading packages
+
+```{r}
+library(data.table) # fread(), fwrite()
+library(readxl)     # read_excel()
+library(tidyverse)  # yay!
+```
+
+`data.table` is a package that reads and writes files quickly.
+`fread` stands for (freaking) fast-read.
+It utilizes multiple threads on your CPU, making it leagues faster than `read.csv` for `.csv` files or `read.table` for `.txt` files.
+It will also auto detect these kinds of file.
+
+Hopefully the `readxl` package is self explanatory.
+
+`tidyverse` is specifically designed for wrangling data, cleaning data, and EDA.
+It is actually a bundle of packages.
+Checkout their website for more details.
+[www.tidyverse.com](https://www.tidyverrse.com)
+
+# American Housing Survey
+*******************************************************************************************
+
+## Loading AHS Data
+*******************************************************************************************
+First thing, let's make sure we have correctly downloaded our data into a single folder
+```{r}
+list.files('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data')
+```
+We are making `lecture data continuous.csv` and `lecture data discrete`. 
+You won't have `lecture data.zip`; it is on the course website.
+`county_2010cbsa.csv` is a county to core based statistical area crosswalk, which is composed of metropolitan and micropolitan areas. 
+`lea to county.xlsx` is the local education agency (i.e. school district) to county crosswalk.
+
+```{r}
+hh = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/household.csv')
+dim(hh)
+class(hh)
+```
+
+As you can see, this is a massive dataset.
+A large number of these variables are flags (variables with a `J` prefix) indicating whether or not a variable has been modified from the survey data.
+Because it is so big, I am just going to look at the first 10 columns for expositional/demonstration purposes.
+
+It is also a `data.table` class object, which is an alternative data frame.
+You can see how the output is different from a basic data.frame
+
+```{r}
+hh[, 1:10]
+```
+
+However, we are going to be using a `tibble`, which is from the tidyverse.
+Since we are just converting the data frame into a `tibble`, we will use the command `as_tibble()`
+
+```{r}
+hh = as_tibble(hh)
+hh
+```
+
+`tibble`s give us much more information than a `data.frame` or a `data.table`, while not exploding the output like a `data.frame`.
+It tells us the dimension and the type of each column.
+This is why I *love* `tibble`s 
+
+
+## Exploration
+*******************************************************************************************
+Here is some of the usual exploration I do
+```{r}
+str(hh[, 1:10]) # structure
+names(hh[, 1:10]) # what variables do I have?
+summary(hh[, 1:10]) # how are they distributed?
+```
+
+### The Pipe Operation
+
+We usually type out nested functions when we need to perform multiple operations.
+For example, if we wanted to find out how many MSAs we have, we would type out this (*note: the variable is CBSA, but we will be dealing with the MSA subset*):
+```{r}
+length(unique(hh$OMB13CBSA))
+```
+I don't know about you, but that seems like a hassle to read. 
+If only there were a way to read what we are doing in a chronological fashion...
+Enter stage-left, the pipline!
+```{r}
+hh$OMB13CBSA %>% unique %>% length
+```
+
+To give another example of avoiding nested functions:
+```{r}
+# I don't like holdind down shift to type out names...
+names(hh) = hh %>% names %>% tolower
+```
+
+## Trimming
+*******************************************************************************************
+
+Anyway, back to the MSAs.
+Let's take a look to see which ones we have in the data.
+```{r}
+table(hh$omb13cbsa)
+```
+
+Looks like we have some extreme values to represent something.
+Maybe we should check the [Codebook](https://www.census.gov/programs-surveys/ahs/tech-documentation/codebooks.html) to see what this means.
+
+Did you do it?
+
+Do it! It's good practice!
+
+Did you notice something else about the output? 
+All of the numbers are wrapped in a `'`. 
+That means all of them are characters.
+Check out this annoying thing using a `stringr` function (`stringr` is part of `tidyverse`)
+```{r}
+hh$omb13cbsa[1] %>% str_length
+```
+That's right!
+The AHS was so helpful, and wrapped the numbers in `'`, instead of the conventional standard of `"`.
+Looks like we get to do some data cleaning...
+
+```{r}
+# Converting MSAs to numeric
+hh$omb13cbsa = hh$omb13cbsa %>% str_sub(2,6) %>% as.numeric
+
+# Removing unspecified observations
+hh = hh[hh$omb13cbsa < 99998, ]
+
+# Look, a logic statement being used in the wild to select data!
+```
+
+
+
+## Response Variables and Indicator Covariates
+
+We are now going to create what the subsection says. 
+Go back to [Overview] if you don't remember what these are.
+
+
+The first thing to note is that the sales market value price is only available for units that were sold.
+This is a convoluted way to say that they are only available for owned houses.
+```{r}
+summary(hh$marketval)
+```
+Oh dear... Why is there a -6 in the data?
+
+Let's go back to the [Codebook](https://www.census.gov/programs-surveys/ahs/tech-documentation/codebooks.html)!
+
+Oh, I see. The AHS is trying to be helpful by using `-6` as NA instead of simply leaving the cell blank.
+But on the flip side, looks like `9999998` is legitimate.
+
+```{r}
+hh$marketval[hh$marketval == -6] = NA
+```
+
+Now, let's take a look at the number of residents in a unit.
+There will be a `-6`. 
+We are also only going to group together so that we have bins for
+ 
+- 1 resident - pesumably a single person
+- 2 residents - presumably a couple
+- 3+ residents - presumably a family
+
+```{r}
+table(hh$numpeople)
+hh$numpeople[hh$numpeople == -6] = NA
+hh$numpeople[hh$numpeople > 3] = 3
+```
+
+Finally, we are going to create the indicator response variable and indicator covariates.
+We are going to do it all in one, using the `mutate` function from `dplyr`.
+This adds on variables, like it is gaining a mutant arm.
+
+```{r}
+# Own/rent, hoa, condo, garage
+table(hh$tenure)
+hh = hh %>%
+  mutate(rent = ifelse(tenure == "'1'",
+                         F,
+                         ifelse(tenure == "'2'",
+                                T,
+                                NA)),
+         hoai = ifelse(hoa == "'1'",
+                       T,
+                       ifelse(hoa == "'2'",
+                              F,
+                              NA)),
+         condoi = ifelse(condo == "'1'",
+                        T,
+                        ifelse(condo == "'2'",
+                               F,
+                               NA)),
+         garagei = ifelse(garage == "'1'",
+                            T,
+                            ifelse(garage == "'2'",
+                                   F,
+                                   NA)))
+# Since there are NAs, we need to specify useNA = 'ifany' in table()
+# If I coded this function, I would just use TRUE or FALSE instead
+# but whatever, I suppose
+table(hh$rent, useNA = 'ifany')
+table(hh$hoai, useNA = 'ifany')
+table(hh$condoi, useNA = 'ifany')
+table(hh$garagei, useNA = 'ifany')
+```
+
+
+## Covariates
+
+It is time to construct the AHS covariates.
+
+
+### Household Income
+
+This one feels pretty self-explanatory.
+```{r}
+summary(hh$hincp)
+hh$hincp[hh$hincp == -6] = NA
+```
+
+### Total Monthly Housing Cost
+```{r}
+summary(hh$tothcamt)
+hh$tothcamt[hh$tothcamt == -6] = NA
+```
+
+### Number of Bedrooms
+```{r}
+table(hh$bedrooms)
+```
+YES! NO WORK NEEDS TO BE DONE!
+
+### Number of Bathrooms
+```{r}
+table(hh$bathrooms)
+```
+Ugh... AHS, why do you do this to us?
+Also, I don't believe some people have 13 bathrooms.
+Maybe we should check the [Codebook](https://www.census.gov/programs-surveys/ahs/tech-documentation/codebooks.html).
+```{r}
+hh$bathrooms = hh$bathrooms %>% str_sub(2,3) %>% as.numeric
+
+# Go to AHS codebook
+hh$bath = 0
+hh$bath[hh$bathrooms == 1] = 1 # set up first
+hh$bath[hh$bathrooms == 2] = 1.5
+hh$bath[hh$bathrooms == 3] = 2
+hh$bath[hh$bathrooms == 4] = 2.5
+hh$bath[hh$bathrooms == 5] = 3
+hh$bath[hh$bathrooms == 6] = 4 # more than three
+
+```
+
+### Equivalent House Value
+
+We are going to do a pretty bad job of creating an equivalent housing metric, by getting the average house price in an MSA based on the number of beds and baths.
+This means we need to *group* the data together by MSA-bathroom-bedroom cells.
+
+It is important to note that this is survey data.
+The individuals sampled may not represent each MSA.
+Fortunately, the AHS has a weight equal to the inverse probability of a unit like this being sampled.
+This permits us to create representative statistics.
+Check out `?weighted.mean`
+
+```{r}
+hh = hh %>%
+  group_by(omb13cbsa, bath, bedrooms) %>%
+  mutate(eqvval = weighted.mean(marketval, weight, na.rm = T)) %>%
+  ungroup
+```
+
+### Lot Size
+I chose the midpoint value for the lot size bins.
+```{r}
+table(hh$lotsize)
+hh$lotsize = hh$lotsize %>% str_sub(2,-2)
+
+hh$lot = 0
+hh$lot[hh$lotsize == 1] = 1/16 
+hh$lot[hh$lotsize == 2] = 3/16
+hh$lot[hh$lotsize == 3] = 5/16
+hh$lot[hh$lotsize == 4] = 3/4
+hh$lot[hh$lotsize == 5] = 3
+hh$lot[hh$lotsize == 6] = 7.5
+hh$lot[hh$lotsize == 7] = 10
+
+```
+
+### Building Type
+Take a look at the [Codebook](https://www.census.gov/programs-surveys/ahs/tech-documentation/codebooks.html) for `bld`.
+
+```{r}
+table(hh$bld)
+hh$bld = hh$bld %>% str_sub(2,3) %>% as.numeric
+
+hh$bldt = 'Mobile Home'
+hh$bldt[hh$bld == 2] = 'Detached SFH'
+hh$bldt[hh$bld == 3] = 'Attached SFH'
+hh$bldt[hh$bld %in% c(4:6)] = 'Apt < 10'
+hh$bldt[hh$bld %in% c(7:9)] =  'Apt >= 10'
+hh$bldt[hh$bld == 10] = NA # boat/rv/van etc.
+
+table(hh$bldt, useNA = 'ifany')
+
+```
+
+### Number of Households
+
+We will eventually be using a the IRS data for household migration flows as a percent of the local houses.
+Therefore, we need a count of how many houses there are.
+
+```{r}
+hh = hh %>% 
+  group_by(omb13cbsa) %>%
+  mutate(nhh = sum(weight)) 
+```
+
+
+### Highest Years of Schooling in Household
+
+In order to figure out what is the most number of years of schooling an individual has in a household, we need the `person.csv` file.
+There is *key* variable, that is a common variable to link across data sets, named `control`.
+
+Check out the [Codebook](https://www.census.gov/programs-surveys/ahs/tech-documentation/codebooks.html) to understand why I made the choices I did below.
+
+```{r}
+list.files('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/')
+p = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/person.csv') %>% as_tibble
+names(p) = p %>% names %>% tolower
+
+table(p$grad)
+p$grad = p$grad %>% str_sub(2,3) %>% as.numeric
+p$grad[p$grad == -6] = NA
+
+p$yos = 0
+p$yos[is.na(p$grad)] = NA
+p$yos[p$grad == 32] = 4
+p$yos[p$grad == 33] = 6
+p$yos[p$grad == 34] = 8
+p$yos[p$grad == 35] = 9
+p$yos[p$grad == 36] = 10
+p$yos[p$grad %in% c(37, 38)] = 11
+p$yos[p$grad == 39] = 12
+p$yos[p$grad %in% c(40, 41)] = 13
+p$yos[p$grad %in% c(42, 43)] = 14
+p$yos[p$grad == 44] = 16
+p$yos[p$grad == 45] = 18
+p$yos[p$grad %in% c(46, 47)] = 20 
+
+table(p$yos)
+
+p = p %>% 
+  group_by(control) %>%
+  mutate(hhyos = max(yos)) %>% 
+  select(control, hhyos) %>%
+  distinct
+
+```
+
+
+I feel bad for those that have no years of schooling.
+
+Now we need to use the **key** of `control` to merge to the original data.
+We will be using a left join.
+
+```{r}
+hh = left_join(hh, p, by = 'control')
+rm(p)
+```
+
+#### Toy Join Example
+
+Notice, we don't have to specify `by = name_of_column`.
+
+```{r}
+a = tibble(key = c(1,2,3,4), value1 = c(2^(1:4)))
+b = tibble(key = c(2,3,5), value2 = c('a', 'b', 'c'))
+left_join(a,b)
+right_join(a,b)
+inner_join(a,b)
+full_join(a,b)
+rm(a,b)
+```
+
+
+# FBIUCR Violent Crimes
+
+This data was a pain to deal with.
+I decided to preprocess it for you.
+The variable is violent crimes per 100,000 people.
+
+```{r}
+fbi = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/fbiucr.csv') %>% as_tibble
+names(fbi)[1] = 'omb13cbsa'
+
+hh = left_join(hh, fbi)
+rm(fbi)
+```
+A question for you: is the as_tibble necessary here?
+
+
+# IRS Migration
+
+The IRS migration data is at the county-level.
+Therefore, we need a cross walk to match the highest level of aggregation that we have.
+Let's load in the crosswalk and do some processing
+
+```{r}
+cw = fread("C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/county_2010cbsa.csv", select = c('cbsa10', 'cbsaname10', 'county')) %>%
+  as_tibble
+names(cw)[1:2] = c('cbsa', 'cbsaname')
+cw$cbsa[cw$cbsa == 31100] = 31080 # LA
+
+names(hh)[which(names(hh) == 'omb13cbsa')] = 'cbsa'
+
+#@@@@ need names to match exactly while joining
+cw = cw[cw$cbsa %in% unique(hh$cbsa),]
+tail(cw)
+```
+## Inflows
+
+Now we can load in the inflows.
+
+```{r}
+(inflow = fread("C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/countyinflow1516.csv") %>% as_tibble)
+```
+
+The first thing to notice is that we don't have county codes in the usual 5 digit Federal Information Processing Standard (FIPS) format.
+That means, it is up to us!
+Luckily, we can do so with some high school level math!
+
+Notice in the filter function, we are using `grepl()`. This is for matching regular expression patterns.
+The `l` is the version that produces a vector of `TRUE`s and `FALSE`s. `grep()` provides the index.
+
+```{r}
+inflow$county = inflow$y2_statefips*1000 + inflow$y2_countyfips
+
+inflow = left_join(inflow, cw) %>%
+  na.omit %>%
+  filter(grepl('total migration-us and foreign', y1_countyname,
+               ignore.case = T)) %>%
+  group_by(cbsa) %>%
+  mutate(inf = sum(n1)) %>%
+  select(cbsa, inf) %>%
+  distinct
+```
+## Outflows
+
+Notice how the code is very similar.
+See if you can spot the differences!
+
+```{r}
+outflow = fread("C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/countyoutflow1617.csv")
+
+outflow$county = outflow$y1_statefips*1000 + outflow$y1_countyfips
+
+outflow = left_join(outflow, cw) %>%
+  na.omit %>%
+  filter(grepl('total migration-us and foreign', y2_countyname,
+               ignore.case = T)) %>%
+  group_by(cbsa) %>%
+  mutate(outf = sum(n1)) %>%
+  select(cbsa, outf) %>%
+  distinct
+```
+
+## Merging
+```{r}
+hh = left_join(hh, inflow)
+hh = left_join(hh, outflow)
+rm(inflow, outflow)
+```
+
+
+# Department of Education Math Proficiency
+
+I am going to provide you with a lot of code all at once.
+Post on Piazza if you have any questions.
+```{r}
+# local education agency
+lea = read_excel('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lea to county.xlsx') # No tibble necessary
+names(lea) = lea %>% names %>% tolower
+lea = lea[, c('leaid', 'cnty')]
+names(lea)[2] = 'county'
+
+lea$county = as.numeric(lea$county)
+
+lea = left_join(lea, cw)
+
+
+lea = lea[lea$cbsa %in% unique(hh$cbsa), ]
+
+# Math
+math = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/math proficiency.csv', select = c(1:8)) %>% as_tibble
+names(math) = math %>% names %>% tolower
+
+names(math)[7:8] = c('count', 'pct') 
+
+math = math[math$leaid %in% lea$leaid, ]
+math = math[math$pct != 'PS', ]
+
+table(math$pct)
+math$pct[math$pct == '10-14'] = 12
+math$pct[math$pct == '11-19'] = 15
+math$pct[math$pct == '15-19'] = 17
+math$pct[math$pct == '20-24'] = 22
+math$pct[math$pct == '20-29'] = 25
+math$pct[math$pct == '21-39'] = 30
+math$pct[math$pct == '25-29'] = 27
+math$pct[math$pct == '30-34'] = 32
+math$pct[math$pct == '30-39'] = 35
+math$pct[math$pct == '35-39'] = 37
+math$pct[math$pct == '40-44'] = 42
+math$pct[math$pct == '40-49'] = 45
+math$pct[math$pct == '40-59'] = 50
+math$pct[math$pct == '45-49'] = 47
+math$pct[math$pct == '50-54'] = 52
+math$pct[math$pct == '50-59'] = 55
+math$pct[math$pct == '55-59'] = 57
+math$pct[math$pct == '6-9'] = 8
+math$pct[math$pct == '60-64'] = 62
+math$pct[math$pct == '60-69'] = 65
+math$pct[math$pct == '60-79'] = 70
+math$pct[math$pct == '65-69'] = 67
+math$pct[math$pct == '70-74'] = 72
+math$pct[math$pct == '70-79'] = 75
+math$pct[math$pct == '75-79'] = 77
+math$pct[math$pct == '80-84'] = 82
+math$pct[math$pct == '80-89'] = 85
+math$pct[math$pct == '85-89'] = 87
+math$pct[math$pct == '90-94'] = 92
+math$pct[math$pct == 'GE50'] = 50
+math$pct[math$pct == 'GE80'] = 80  
+math$pct[math$pct == 'GE90'] = 90
+math$pct[math$pct == 'GE95'] = 95
+math$pct[math$pct == 'LE1'] = 1
+math$pct[math$pct == 'LE10'] = 10
+math$pct[math$pct == 'LE20'] = 20
+math$pct[math$pct == 'LE5'] = 5
+math$pct[math$pct == 'LT50'] = 50
+table(math$pct)
+
+math$pct = math$pct %>% as.numeric
+math$share = math$pct/100
+
+math$prf = with(math, count*share)
+
+lea$cbsa = as.numeric(lea$cbsa)
+lea$leaid = as.numeric(lea$leaid)
+math = left_join(math, lea)
+
+math = math %>%
+  group_by(cbsa) %>%
+  mutate(math_prf = sum(prf)/sum(count)*100) %>%
+  select(math_prf, cbsa) %>% 
+  distinct
+
+# need to omit for limited (bad) data reasons:
+#   38060 – Phoenix-Mesa-Scottsdale, AZ
+#   40140 – Riverside-San Bernardino-Ontario, CA
+hh = hh[!hh$cbsa %in% c(38060, 40140), ]
+
+hh = left_join(hh,math)
+rm(math, lea)
+
+```
+
+# Selecting Data
+************************************************************************************
+
+Let's attach the `cw` to `hh` so we can tell what MSAs we are looking at.
+```{r}
+cw = cw %>%
+  select(cbsa, cbsaname) %>%
+  distinct
+hh = left_join(hh, cw)
+unique(hh$cbsaname)
+```
+
+
+Now we are going to create a placeholder dataset containing the variables we need.
+
+
+```{r}
+dat = hh %>%
+  ungroup %>%
+  mutate(id = control,
+         cbsa = cbsa,
+         value = marketval,
+         cost = tothcamt,
+         renter = rent,
+         npeople = numpeople,
+         hinc = hincp,
+         beds = bedrooms,
+         baths = bath,
+         eqvval = eqvval,
+
+         lotsize = lot,
+         yos = hhyos,
+         hoa = hoai,
+         condo = condoi,
+         garage = garagei,
+         bld = bldt,
+         hinf = inf/nhh*100,
+         houtf = outf/nhh*100,
+         crime = vcrimes,
+         math = math_prf) %>%
+  select(id, cbsa, cbsaname, value, cost, renter, npeople, hinc, beds, baths, eqvval,
+         lotsize, yos, hoa, condo, garage, bld, crime, math, hinf, houtf)
+```
+
+Next, we are going to trim observations such that there are no zero values for 
+
+- Household income
+- Monthly housing cost
+
+because these are "wage"-ish variables. 
+That means we will be taking logs of them.
+Logarithms and zeros are not friends.
+
+```{r}
+dat = dat %>%
+  filter(hinc > 0 & cost > 0)
+
+```
+
+Recall that house values are only available for owned units.
+That means we need to create two datasets: one with a continuous outcome variable and one for the discrete.
+Otherwise, we would be able to perfectly predict renter status by `value` being zero.
+
+```{r}
+dat_val = dat %>%
+  select(-renter) %>%
+  na.omit
+
+# Rental an num of peeps
+dat_rent_np = dat %>%
+  select(-value) %>%
+  na.omit
+
+
+dat_rent_np = dat_rent_np %>%
+  filter(cost != 0)
+
+```
+
+
+# Saving Data Sets 
+
+And with this code chunk, we are done!
+
+```{r}
+fwrite(dat_val, 'lecture data continuous.csv')
+fwrite(dat_rent_np, 'lecture data discrete.csv')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

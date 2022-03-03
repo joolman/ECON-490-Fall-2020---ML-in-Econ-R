@@ -1,0 +1,64 @@
+---
+title: "Workshop: Cobb-Douglas Returns to Scale"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 
+
+In economics, we assume that firms use inputs to produce outputs. 
+Woah. Some pretty strong assumptions there.
+Perhaps the stronger assumption is the functional form that the production function takes.
+The most common is the Cobb-Douglas production function.
+
+$$
+y = a^{1+\epsilon}k^\alpha l^\beta m^\gamma e^\delta
+$$
+where a is a "technology" factor, $\epsilon \sim N(0,1)$ is some unobserved shock, $k$ is capital, $l$ is labor, $m$ is materials, and $e$ is energy.
+The remaining Greek letters are elasticities of production or marginal products. For example, $\alpha$ is the marginal product of capital. 
+
+In our application, we are dealing with Slovenian manufacturing industries.
+We typically think that all firms use labor and capital (buildings, machines, patents, ideas).
+Manufacturing will also use materials and energy.
+Yes, all firms use energy to keep their lights on, but manufacturing will use a lot more in producing its goods than a law firm.
+
+To estimate these models, we first need data on these firms.
+These data are typically hard to come by (hence Slovenian data) and tend to really only exist in manufacturing, which is a relatively small subset of all industries (use the CPS industry variables to figure out what percent of employment manufacturing makes up in the United States).
+But we can take the logs of both sides and rearrange to produce our regression function.
+
+$$
+\begin{align}
+  y & = a^{1+\epsilon}k^\alpha l^\beta m^\gamma e^\delta \\
+  log(y) & = log(a^{1+\epsilon}) + log(k^\alpha) +  log(l^\beta) + \log(m^\gamma) + log(e^\delta)\\
+  & = (1+\epsilon)log(a) +\alpha log(k) + \beta log(l) + \gamma log(m) +  \delta log(e) \\
+  & = log(a) +\alpha log(k) + \beta log(l) + \gamma log(m) +  \delta log(e) + \epsilon log(a)\\
+\end{align}
+$$
+where $log(a)$ is just a constant.
+
+
+The returns to scale tells us that if we increase all inputs by $\psi$ percent, then by how much does our output $y$ increase by.
+Let's denote our new output by $\tilde{y}$.
+
+$$
+\begin{align}
+  \tilde{y} & = a^{1+\epsilon}(k\psi)^\alpha (l\psi)^\beta (m\psi)^\gamma (e\psi)^\delta \\
+  & =  a^{1+\epsilon}k^\alpha l^\beta m^\gamma e^\delta \psi^{\alpha + \beta + \gamma + \delta} \\
+  & = y \psi^{\alpha + \beta + \gamma + \delta}
+\end{align}
+$$
+Here we can see that if $\alpha + \beta + \gamma + \delta = 1$, then $\tilde{y} = \psi^1 y$, which means we have constant returns to scale: increase all inputs by $\psi$% increases the output by $\psi$%. 
+Decreasing returns to scale means that $\alpha + \beta + \gamma + \delta < 1$, or increasing all of our inputs by our arbitrary $\psi$% will increase output by less than $\psi$% or $\tilde{y} < \psi y$.
+Increasing returns to scale would be the converse.
+
+A question for you would be, if you were running a firm, what kind of returns to scale would you prefer to have (think profits)?
+If you decide to produce more and your returns to scale decays, when do you know you should stop?
+
+
+
+

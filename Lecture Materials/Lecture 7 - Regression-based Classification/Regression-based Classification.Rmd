@@ -1,0 +1,304 @@
+---
+title: "Regression-Based Classification"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 4, fig.height = 2.25, fig.align = 'center')
+```
+
+********************************
+# Preliminaries
+**********************************
+We are going to cover how to implement a linear probability model, binomial logistic regression, multinomial logistic regression, and marginal effects of these models.
+
+Let's load in some packages!
+```{r}
+library(tidyverse) # woo!
+library(margins)   # margins()
+library(nnet)      # multinom
+
+# Let's use read.csv for some diversity
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/lecture data discrete.csv') %>%
+  as_tibble 
+```
+
+The `margins` package helps us with finding the marginal effect of a function. 
+We are also using `nnet` which has a useful multinomial logistic regression.
+However, this is not the package we are going to be using for our neural network module. 
+`nnet` is quite limited in its scope.
+
+# LPM vs Logistic Inference
+*********************************
+
+As I mentioned in the recorded portion of the lecture, LPM and logistic regression produce *nearly* identical marginal effects.
+
+## LPM Marginal Effects
+*********************
+Let's start off with a simple example.
+
+```{r}
+lfit = lm(renter ~ baths, ahs)
+summary(lfit)
+```
+
+This output shows us that increasing the number of baths by 1 is associated with an decrease of 0.32pp in the probability that the unit is rented.
+
+## Logistic Marginal Effects
+*******************************
+to run a logistic regression, we need to use a generalized linear model `glm`.
+We are dealing with an indicator response variable, which means we need the binomial distribution.
+
+```{r}
+gfit = glm(renter ~ baths, ahs, family = 'binomial')
+summary(gfit)
+```
+Now hold your horses, Julian! I thought you said the marginal effects were very similar!
+
+And to that I would say, they are!
+We are currently looking at the output for the log-odds ratio.
+Remember:
+$$
+log \left(  \frac{p(x)}{1-p(x)}  \right) = \beta_0 + \beta_1 baths
+$$
+We need to use our marginal effects formula!
+$$
+\frac{\partial p(X)}{\partial \beta_1} = \frac{e^{\beta_0 + x \beta_1}}{(1+e^{\beta_0 + x \beta_1})^2} \beta_1
+$$
+
+To calculate the marginal effects, we are going to use the two different techniques:
+
+1. Average of the covariates
+2. Average of predicted values
+
+### Marginal Effects - Covariate Averages
+**************************************
+First, let's grab the coefficients and then output the marginal effect.
+
+```{r}
+beta = coef(gfit)
+xbar = mean(ahs$baths)
+
+exp(beta[1] + beta[2]*xbar)/(  (1 + exp(beta[1] + beta[2]*xbar))^2  )*beta[2]
+```
+I'd say that is a bit closer to the LPM's estimate.
+
+### Marginal Effects - Predicted Value Averages
+*********************************************
+Recall that we can alternatively use
+$$
+\frac{1}{n}\sum_{i=1}^n \frac{e^{\hat{y_i}}}{(1+e^\hat{y_i})^2} \hat{\beta}_1
+$$
+for the marginal effects.
+
+```{r}
+yhat = predict(gfit, ahs)
+
+mean(  exp(yhat)/ (1+exp(yhat))^2*coef(gfit)[-1] )
+# QUESTION: 
+#      What does the [-1] do? 
+#      Why do we do it?
+```
+That looks a lot closer to the LPM output! 
+This is the all (that I know of) statistical packages calculate the marginal effects.
+
+```{r}
+margins(gfit)
+```
+See? We just explored what is going on under the hood in the function `margins()`!
+
+**A word of caution:** I played around with the `margins()` function on larger data sets, and it takes a *long* while to produce the output.
+I highly recommend typing out the equation manually to save yourself from staring at the red stop sign at the top right of the console for hours (well, probably several seconds to a few minutes).
+I have no idea why `margins()` is so inefficient.
+
+### A More Elaborate Model
+********************************
+
+Let's move on to a more interesting model. 
+
+#### A Better Sample-Splitting Technique
+
+```{r}
+set.seed(490)
+train = ahs %>% sample_frac(0.75)
+test  = anti_join(ahs, train, by = 'id')
+```
+I am showing you multiple ways to perform sample-splitting to make the point that there is not a unique solution to coding.
+I deliberately started with the more fundamental level to show you what is going on within each of these functions.
+I hope this demystifies some of the black box.
+`sample_frac()` is my preferred method of sample-splitting.
+
+Back to the more elaborate model.
+```{r}
+bfit = glm(renter ~ log(cost)*hoa + npeople + log(hinc) + beds*baths  + lotsize + yos + condo + garage +
+            bld + crime + hinf + houtf, train, family = "binomial")
+summary(bfit)
+```
+Yup! That is a lot more variables!
+
+But guess what? 
+We can still explore *all* the marginal effects of these coefficients in two lines of code!
+```{R}
+yhat = predict(bfit, ahs)
+mean(exp(yhat)/(1 + exp(yhat))^2) * coef(bfit)[-1]
+```
+
+## Model Performance
+*******************************
+Let's take a look at how well this model does at predicting renter status.
+First, we will grab the predicted probabilities using a threshold of $\psi = 0.5$.
+
+```{r}
+psi = 0.5
+phat = ifelse(predict(bfit, test, type = 'response') >= psi,
+              TRUE,
+              FALSE)
+summary(phat)
+table(test$renter)
+```
+Just looking at the raw counts of renters and predicted renters, we seem to be heading in the right direction!
+However, we could have a complete mismatch between which are predicted to be renters and those that truly are renters.
+This leads us to exploring the error rate:
+$$
+\text{error rate} = \frac{1}{n} \sum_{i=1}^n \text{I}\{y_i \neq \hat{y}_i\}
+$$
+Or in code:
+```{r}
+1/dim(test)[1] * sum(phat != test$renter)
+```
+As far as error rates go, I'd say this one is decent.
+
+But you need to remember that this error rate is a function of the threshold that we chose. 
+We can actually sweep across the different thresholds to determine which is best.
+```{r}
+psi.grid = tibble(psi = seq(0.05, 0.95, by = 0.05), error_rate = 0)
+
+for(a in 1:dim(psi.grid)[1]){
+  phat = ifelse(predict(bfit, test, type = 'response') >= psi.grid$psi[a],
+                TRUE,
+                FALSE)
+  psi.grid[a,2] = 1/dim(test)[1]* sum(phat != test$renter)
+}
+psi.grid
+```
+Well, that is annoying to look at.
+
+Remember the thing about humans being visual creatures, so if you can plot then you should?
+Well, this is one of those cases.
+
+```{r plot}
+ggplot(psi.grid, aes(x = psi, y = error_rate)) +
+  geom_point(size = 2) +
+  geom_line() + 
+  theme(text = element_text(size = 20)) +
+  labs(x = 'Decision Threshold', y = 'Error Rate', title = 'Logistic Error Rate')
+```
+
+
+As the figure shows us, choosing a threshold of 0.6 is the best we can do given this training and testing data.
+We will talk about a better method of selecting a threshold (or *hyperparameter*) in the next module of this class.
+
+# Multinomial Logistic Regression
+*****************************************
+
+Recall from the recording that multinomial logistic regression (and binomial) are all relative to a baseline. 
+In multinomial, we are going to end up with $K-1$ different sets of parameters.
+
+$$
+log \left( \frac{\text{Pr}(G = k|X = x)}{\text{Pr}(G = K|X = x)}  \right) = \beta_{0,k} + \beta_{1,k} X
+$$
+Where we could have many $X$ variables.
+
+As a refresher, we calculate the probabilities like so:
+$$
+\text{Pr}(G = k|X = x) = \frac{e^{\beta_{0,k} + \beta_{1,k} x}}{1 + \sum_{l=1}^{K-1} e^{\beta_{0,l} + \beta_{1,l} x}}
+$$
+
+Now, off to producing the multinomial fit.
+```{r}
+mfit = multinom(npeople ~ log(cost)*hoa + log(hinc) + beds*baths  + lotsize + yos + condo + garage +
+           bld + crime + hinf + houtf, train)
+(smfit = summary(mfit))
+```
+Since we have $K=3$ groups, we have 2 sets of coefficients for the regression.
+But, we don't have the p-values! I live for the p-values!!!!
+
+From the recording, you should remember that we are imposing a distributional form on these estimates, which means we are going to be using a Z-test, not a t-test. 
+Here $Z = \frac{\hat{\beta} - \beta_0}{se(\hat{\beta})}$, where $\beta_0 = 0$.
+The associate p-values are given by $p = (1 - \Phi(Z))*2$, where $\Phi(\cdot)$ is the standard normal distribution. 
+We are multiplying by two because we want to use a two-sided test.
+
+```{r}
+smfit$z = smfit$coefficients/smfit$standard.errors
+
+smfit$p = (1 - pnorm(abs(smfit$z)))*2
+smfit$p
+```
+
+Looks like we have some super significant coefficients and some that are not at all.
+
+## Inference
+***********************
+It is time for the messiest interpretation of the semester.
+Let's give interpreting the coefficient on attached single family homes on three+ person occupied units a whirl.
+
+*"A single family home unit decreases the log odds ratio of three+ person units to one person units by 0.57 relative to the baseline unit of apartments with fewer than 10 units."*
+
+$$ Gross. $$
+
+## Marginal Effects
+We can perform the same exact steps to calculate the marginal effect of each of these coefficients. 
+This will produce a matrix, because we have a matrix of coefficients.
+```{r}
+yhat = predict(mfit, test, type = 'probs') # type = c('class', 'probs')
+
+mean(exp(yhat)/((1+exp(yhat))^2))*coef(mfit)
+```
+*__Note:__* the prediction type for a `multinom` object is different than a `glm` object.
+
+
+## Model Performance
+*********************
+Time for those same two lines of code.
+```{r}
+yhat = predict(mfit, test)
+
+1/length(yhat)* sum(yhat != test$npeople)
+```
+Ouch... We did not do very well. 
+To put this into perspective, if we assume that we have equal size groups of 1, 2, and 3+ people (which we don't), randomly guessing (how about the same number) would give us an error rate of 0.66.
+
+```{r}
+table(test$npeople)
+# The error rate of just guessing 2 occupants every time
+1 - 1613/(dim(test)[1])
+```
+
+
+
+# Saving for Next Time!
+******************************
+We are going to compare the performance of these models with different models next lecture, so we need to save it.
+We can do so using a `.rda` file.
+This format allows us to save multiple objects in one file.
+
+```{r}
+# Grabbing the objects we need
+fb = bfit$terms
+fm = npeople ~ log(cost)*hoa + log(hinc) + beds*baths  + lotsize + yos + condo + garage + bld + crime + hinf + houtf
+
+save(fb, fm, bfit, mfit, file = 'C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/logistic fit.rda')
+list.files('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data')
+```
+
+
+
+
+
+

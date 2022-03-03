@@ -1,0 +1,277 @@
+Git & GitHub Lecture
+
+To Do
+	Make GitHub Account
+	Download git		https://git-scm.com/downloads
+	Download Atom		https://atom.io/
+
+Open 
+	Git Bash
+	Atom
+	GitHub
+	File explorer to pwd
+=====================================================================
+
+Atom - 	File > settings > install > markdown-preview (scroll down)
+	Ctrl-Shift-m to compile
+
+git --version
+	Is it correctly installed?
+
+	Let git know who is making changes when tracking changes
+git config --global user.email "match github email"
+git config --global user.name "match github username"
+git config user.name
+
+pwd
+	Open with file explorer
+ls
+	list everything
+dir
+	Directories/paths we can jump into
+cd Des..Tab
+ls
+cd ..
+	dot dot - "back up"
+cd Desktop
+mkdir doodle
+	Make directory doodle - SHOW ON DESKTOP
+ls
+rmdir doodle
+	Gone
+ls
+uparrow uparrow mkdir doodle
+cd "C:/Users/johnj/Desktop/doodle"
+ls
+	Empty!
+
+#######################
+# Making a repository #
+#######################
+git init
+
+__Atom > View > Toggle Tree View
+
+touch README.md
+ls
+Atom README.md
+rm README.md
+ls
+touch README.md
+	Atom lets you know that you are in a repository by book
+	Green files mean it is new
+#@@@@ We can also create a repo with existing files
+cd ..
+mkdir doodle2
+touch blah.txt
+mkdir subfolder
+cd subfolder
+touch aux_files.html
+cd ..
+git init
+ls
+cd ..
+rmdir doodle2
+
+###########
+# Staging #
+###########
+
+	# Doodle
+	An awesome repository!
+
+git status
+git add README.md
+	OH NO! DON'T DO THAT YET!
+git rm --cached README.md
+
+	hello.R
+	hello = function(){print("Hello, world!")}
+	hello()
+
+git status
+git add README.md hello.R
+git status
+git rm --cached README.md hello.R
+git add .
+git status
+git rm --cached . -r
+
+#############
+# Commiting #
+#############
+
+git add README.md
+git commit -m "Created readme markdown"
+git log
+git log --online
+git status
+git add .
+git commit -m "Added phenomenal function" NOOOOOOO "Added hello worl 
+
+	#### Table of Contents
+	* [About](#About-this-repo!)
+	# About this repo!
+
+git add .
+git status
+git commit -m "Added table of contents"
+
+####################################
+# Going on a journey back in time! #
+####################################
+
+git checkout a3647b2
+git log --oneline
+	may have to close Atom
+git checkout master
+git log --oneline
+
+git revert a3647b2
+	Shift : wq Enter
+git mergetool
+	Look at _BASE file
+	Copy and paste
+git status
+git add .
+	Shift : wq
+git commit
+git log --oneline
+
+git reset d5557ff
+	Can consolidate changes
+git reset d5557ff -h
+	Do not save changes
+
+#############
+# Branching #
+############# Try out/test new code without changing main branch
+
+git branch analysis
+git branch -a
+git checkout analysis
+Atom hello.R 
+	'"Hello, world!" says R'
+git status
+git add .
+git status
+git commit -m "Made hello.R grammatically correct"
+git log --oneline
+
+git checkout master
+git log --oneline
+
+git branch -d analysis
+git branch -D analysis
+git branch -a
+
+git checkout -b analysis1
+Atom hello.R 
+	'"Hello, world!" says R'
+git add .
+git commit -m "Made hello.R grammatically correct"
+
+git checkout -b analysis2
+ATOM 
+	add = function(x){sum(x)}
+git add .
+git commit -m "added add function"
+git checkout master
+git branch -a
+
+###########
+# Merging #
+########### Must be in the branch you want to merge to
+git merge analysis
+	Fast forward in time
+git merge analysis2
+	Recursive - added updated hello.R
+
+git checkout -b analysis
+git checkout master
+	Update README.md
+	There is a hello world function
+git add .
+git commit -m "added README details"
+
+git checkout analysis3
+	Update README.md
+	There is an add function.
+git add .
+git commit -m "README now has add function listed"
+
+git checkout master
+	Resolve conflicts
+git merge analysis3
+	Add both right-click dismss
+git add .
+git commit
+	Shift : wq
+git log --oneline
+
+##########
+# GitHub #
+########## Storing repositories online
+METHOD 1: Existing repo
+Go to Github, create repository with same name for consistency
+	Add NOTHING!!!!!
+git status
+git push https://github.com/julianwadeoolman/doodle.git master
+GO TO GITHUB
+	SEE FILES 
+	SEE COMMITS
+	SEE BRANCHES
+Atom README.md "Ain't that cool?"
+git add .
+git commit -m "Awesome README comment"
+git remote add origin https://github.com/julianwadeoolman/doodle.git
+	origin is an alias, GitHub default
+git push origin master
+GITHUB
+
+METHOD 2: No local repository
+GITHUB
+	Profile > Repositories > New
+cd ..
+git clone https://github.com/julianwadeoolman/doodle2.git
+cd doodle2
+Atom > File > Add Project Folder
+mkdir code
+cd code
+	Atom simple.R
+	1+1
+git add .
+git commit -m "Added 1+1"
+git remote -v
+
+#################
+# Collaboration #
+################# Suppose doodle2
+git pull origin
+git checkout -b function
+
+simple.R "Neat"
+git add .
+git commit -m "commented"
+git push origin function
+GITHUB create Pull Request
+	Comment
+	Line by line comment
+git checkout main
+git pull origin
+git checkout -b blahhhhhhhhhhhhhhhhh
+
+GITHUB > REPO > SETTINGS > DANGER ZONE > DELETE
+
+################
+# Contributing #
+################ open source projects
+GITHUB FORK adds to your account
+
+modify
+add 
+commit
+push (to your github account(
+Click on repo
+New pull request
+create pull request

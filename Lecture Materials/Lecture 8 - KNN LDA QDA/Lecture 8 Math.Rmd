@@ -1,0 +1,64 @@
+---
+title: "Lecture 8"
+author: "ECON 490: Applied ML in Econ"
+date: "Fall 2020"
+output: 
+  powerpoint_presentation:
+    reference_doc: ECON_490.potx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+path = 'C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data'
+list.files(path)
+
+
+```
+
+##
+
+$$\text{Pr}(Y = k | X = x) = \frac{1}{K} \sum_{i \in N_0} I\{y_i = k\}$$
+
+$$
+\hat{y} = \frac{1}{K} \sum_{i \in N_0} y_i
+$$
+
+##
+
+$$
+\text{Pr}(Y = k | X = x) = \frac{\text{Pr}(Y = k)\text{Pr}(X = x|Y = k)}{\sum_{l=1}^K\text{Pr}(Y = l)\text{Pr}(X = x | y = l)}
+$$
+
+$$
+= \frac{\pi_k f_k(x)}{\sum_{l=1}^K \pi_l f_l(x)}
+$$
+
+$$\hat{\pi}_k = \frac{n_k}{n}$$
+
+##
+
+$$
+f_k(x) = \frac{1}{\sqrt{2 \pi \sigma_k^2}} e^{-\frac{(x - \mu_k)^2}{2\sigma_k^2}}
+$$
+
+$\sigma_k^2 = \sigma^2 \forall k = 1, ..., K$
+
+$$
+p_k(x) = \frac{\pi_k \sqrt{2 \pi \sigma^2} e^{-\frac{(x - \mu_k)^2}{2\sigma^2}}}{\sum_{l=1}^K \pi_l \sqrt{2 \pi \sigma^2} e^{-\frac{(x - \mu_l)^2}{2\sigma^2}}}
+$$
+
+##
+
+$$
+\hat{\mu}_k = \frac{1}{n_k} \sum_{i;y=k} x_i
+$$
+
+$$
+\hat{\sigma}^2 = \frac{1}{n-K} \sum_{k=1}^K \sum_{i; y = k} (x_i - \hat{\mu}_k)^2
+$$
+
+$$
+\hat{\sigma}^2_k = \frac{1}{n_k-1} \sum_{i; y = k} (x_i - \hat{\mu}_k)^2
+$$
+

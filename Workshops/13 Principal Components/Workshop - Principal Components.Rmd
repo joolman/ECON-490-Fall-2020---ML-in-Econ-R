@@ -1,0 +1,77 @@
+---
+title: "Principal Components"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Principal components is a dimension reduction technique.
+Today, we are going to identify the number of components that we should use via a scree plot to predict the `self_esteem` variable.
+Then we are going to produce a new data set
+
+1. identify the number of components to use via a scree plot
+2. create a new dataset from the identified principal components
+3. fit a model using `lm()` on the components
+
+
+Load the NLSY data. No packages or seed setting necessary.
+
+```{r, include = FALSE}
+nlsy = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/nlsy/nlsy_workshop_data.csv')
+```
+
+# Scree Plots
+**********************
+
+By first using `scale()`, `cov()`, and `eigen()`, produce a scree plot.
+
+```{r, include = FALSE}
+x = model.matrix(self_esteem ~ . - 1, data = nlsy)
+pc = eigen(cov(scale(x)))
+
+plot(pc$values)
+
+# It looks like the kink is at 5, so we should use the first 4.
+# That is, it looks like the first four principal components hold most the information
+```
+
+# New Data
+***************
+
+Produce a new dataset using the identified principal components. 
+To do so:
+
+1. obtain a matrix of the identified principal components (the eigenvectors) in a matrix called `rotation`
+2. Using your rotation matrix, perform the matrix multiplication: `scaled_x %*% rotation` and save the output as `new_x`
+
+```{r, include = FALSE}
+rotation = pc$vectors[, 1:4]
+
+new_x = scale(x) %*% rotation
+```
+
+
+# Principal Component Regression
+**************************
+
+Fit a PCR model using `lm()` predicting `self_esteem`.
+Produce a summary of the fit.
+
+```{r, include = FALSE}
+fit_pcr = lm(nlsy$self_esteem ~ new_x)
+summary(fit_pcr)
+```
+
+
+
+
+
+

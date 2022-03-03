@@ -1,0 +1,476 @@
+---
+title: "Regression Fundamentals"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 4, fig.height = 2.25, fig.align = 'center')
+```
+
+
+***********************************
+To prepare for next lecture, read:
+
+- Chapter 4.1
+- Chapter 4.2
+- Chapter 4.3
+
+For more practice, do:
+
+- Lab 3.6
+
+
+*********************************
+
+**Overview**
+
+Today we are going to do some
+
+1. EDA
+2. Model selection
+3. Hypothesis Testing
+4. Inference
+5. Do some prediction
+6. Establish selected model quality of fit
+
+********************************
+
+**Preliminaries**
+
+
+You don't need to use `data.table` to load in the data, but I always do out of a force of habit. 
+We will, however, almost always be using some of the packages that are inside of `tidyverse`.
+```{r}
+library(tidyverse)
+library(data.table)
+```
+
+Loading in the data:
+```{r}
+ahs = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data continuous.csv')
+```
+
+The `fread()` function is designed specifically for larger files.
+Ours is relatively small. 
+How small you might ask?
+
+Let's remember that object size goes from bytes, kilobyte, megabyte, gigabyte, petabyte, and terabyte in orders of 1024.
+There are sizes beyond terabytes.
+
+So, how big is our data?
+```{r}
+object.size(ahs)/1024^2
+```
+Only 1.7 megabytes.
+Pretty small. 
+`fread()` will really come in handy once we start dealing with things that are approaching the gigabyte size. 
+
+Anyway, let's get on with it...
+
+
+
+# EDA
+**********************************
+
+We will create some summary (haha, they sound the same...) statistics and some lovely plots. 
+This is always good practice when you approach your data for the first time.
+It helps you understand what patterns lie within the data.
+
+## Summary Statistics
+********************************
+
+```{r}
+summary(ahs)
+```
+
+Well, that produces a lot.
+Nonetheless, it is still useful to look through.
+For example, it gives us an idea of the distribution of the variables or what type they are, such as the variable `value`.
+
+Do you remember how to tell whether a variable is left or right skewed from the mean and median of variable?
+Take a moment to think about it.
+```{r}
+mean(ahs$value); median(ahs$value)
+```
+
+
+## Some Pretty(ish) Plots
+******************************************
+What were are doing right now is EDA for ourselves, not for presentation.
+Remember that for presentation you should properly label you axis and titles, use color if applicable, and set your font size large enough so the person in the back of the room can see it.
+
+### Single Variables
+*****************************************
+Let's revisit the `ahs$value` distribution.
+
+```{r}
+hist(ahs$value)
+```
+
+WOW! That is mega right skewed.
+Whenever we see data like this, it is pretty likely that we will need to take a log transformation.
+We want to transform this variable to prevent bias in our estimates and reduce the variance in our predictions.
+
+```{r}
+hist(log(ahs$value))
+```
+
+Yup. That is looking much better! 
+Notice how it looks normally distributed?
+This puts in the right direction of satisfying the regression assumption of normally distributed errors.
+
+Typically when we are dealing with wage data, valuation data, or expenditures data, we need to take a log transformation.
+This is not a true blanket statement, so you should check:
+```{r}
+hist(log(ahs$cost))
+hist(log(ahs$eqvval))
+```
+Both of those plots look like a log transformation is appropriate.
+
+
+### Multiple variables
+***************************************
+
+There are various ways that we can plot different variables together.
+For example, if we have two continuous variables, we can
+
+- make a small point scatter
+- make a binned scatter
+- make a 2d binned plot
+
+For continuous versus discrete variables, we can use my favorite kind of plot, the violin plot.
+
+And finally if we have two discrete variables, we can use a heatmap.
+
+
+Here are some plots to guide our analysis
+```{r}
+ggplot(ahs, aes(y = log(value), x = log(cost))) +
+  geom_point(size = 0.1)
+
+ggplot(ahs, aes(y = log(value), x = log(cost))) +
+  geom_bin2d()
+
+
+ggplot(ahs, aes(y = log(value), x = log(cost))) +
+  stat_summary_bin(bins = 20, fun = mean)
+```
+
+The binned scatter plot will warn you that observations have been removed if they do not fit equally into the number of bins.
+
+
+```{r}
+ggplot(ahs, aes(y = log(value), x = log(eqvval))) +
+  geom_point(size = 0.1)
+```
+**A question you should be able to answer**: Why does the plot produce the vertical columns?
+
+```{r}
+ggplot(ahs, aes(y = log(value), x = math)) +
+  stat_summary_bin(bins = 20, fun = mean) 
+```
+Perhaps we will need a second order polynomial term.
+
+```{r}
+ggplot(ahs, aes(y = log(value), x = crime)) + 
+  stat_summary_bin(bins = 20, fun = mean) 
+```
+
+```{R}
+ggplot(ahs, aes(y = log(value), x = log(hinc))) + 
+  geom_bin2d()
+```
+
+And now for the beautiful violin plots!
+
+```{r}
+ggplot(ahs, aes(x = log(value), y = bld, fill = bld)) +
+  geom_violin() 
+
+ggplot(ahs, aes(y = log(value), x = hoa, fill = hoa)) +
+  geom_violin() 
+
+```
+
+Finally, the heatpmaps!
+
+```{r}
+ggplot(ahs, aes(x = hoa, y = bld, fill = log(value))) +
+  geom_tile()
+```
+
+
+# Model Selection
+*************************************
+
+
+## `lm()` Regression Overview
+******************************************
+We are now going to run the first regression of the lecture series!
+We know from the plots above that `value` and `cost` appear to have a strong relationship.
+Let's test that out!
+```{r}
+# lm stands for linear model
+class(log(value) ~ log(cost))
+lm(log(value) ~ log(cost), data = ahs)
+```
+
+Great! But what if we want more information such as the significance levels?
+Then we use `summary`.
+```{r}
+fit = lm(log(value) ~ log(cost), ahs)
+summary(fit)
+```
+Looks like we did a pretty good job!
+
+If you recall from the EDA, it looks like the `math` variable was going to need a quadratic transformation. Let's do it!
+
+```{r}
+lm(log(value) ~ poly(math, 2), ahs) %>% summary
+```
+What if we only want to include the intercept and the second-degree term?
+Then we use the `I()` or interpret function.
+```{r}
+lm(log(value) ~ I(math^2), ahs) %>% summary
+```
+Hmmm, that doesn't look very good. 
+
+Notice that we can run this on a categorical variable.
+```{r}
+lm(log(value) ~ bld, ahs)
+# Versus
+lm(log(value) ~ bld - 1, ahs)
+```
+**Questions** What is the difference between these two models? How does the interpretation of the coefficients change?
+
+What if we want an interaction term?
+Check out the differences between these two regressions.
+```{r}
+lm(log(value) ~ beds*baths, ahs) %>% summary
+lm(log(value) ~ beds:baths, ahs) %>% summary
+```
+
+
+## Backward Selection
+*****************************************************
+
+We are now going to perform backward selection as outlined in chapter 3.
+We will use the criteria of p-values less than 0.05.
+For the formula, we will use some of the intuition gained from the EDA.
+
+
+```{r}
+lm(log(value) ~ log(cost)*hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + bld + crime +
+     poly(math, 2) + hinf + houtf, data = ahs) %>% summary
+```
+Looks like we need to adjust the way we are specifying building type.
+
+```{r}
+# Set buildings to mobile home
+lm(log(value) ~ log(cost)*hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + 
+     I(bld == 'Mobile Home') + crime +
+     poly(math, 2) + hinf + houtf, data = ahs) %>% summary
+```
+Oh no! It looks like the housing outflows `hout` is the next variable to remove!
+What a shame!
+We spent so much time creating it!
+
+```{r}
+# Remove hout
+lm(log(value) ~ log(cost)*hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + 
+     I(bld == 'Mobile Home') + crime +
+     poly(math, 2) + hinf, data = ahs) %>% summary
+```
+Sad, it looks like `hinf` is the next to kick the bucket.
+
+```{r}
+# Remove hinf
+lm(log(value) ~ log(cost)*hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + 
+     I(bld == 'Mobile Home') + crime +
+     poly(math, 2), data = ahs) %>% summary
+```
+Now it looks like we need to remove `hoa` without removing the interaction `log(cost):hoaTRUE`.
+We can do so like this:
+
+```{r}
+# remove hoa
+lm(log(value) ~ log(cost)*hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + 
+     I(bld == 'Mobile Home') + crime +
+     poly(math, 2) - hoa, data = ahs) %>% summary
+```
+Looks like we need to remove the `crime` next.
+
+**Question** The EDA showed that `crime` had a strong relationship. Why did the regression model tell us to remove it?
+```{r}
+# Remove crime
+lm(log(value) ~ log(cost):hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + 
+     I(bld == 'Mobile Home') +
+     poly(math, 2) - hoa, data = ahs) %>% summary
+```
+
+As we can see by the lovely stars on the side of each variable, we have our selected model at the 5% level.
+Let's save it!
+
+```{r}
+# final model
+ffit = lm(log(value) ~ log(cost):hoa + npeople + log(hinc) + beds*baths +
+     log(eqvval) + lotsize + yos + condo + garage + I(bld == 'Mobile Home') + poly(math, 2) - hoa, data = ahs)
+```
+
+# Hypothesis Testing
+*******************************
+
+## Single Hypothesis Testing
+*****************************************
+
+From the final fitted linear model, let's do a formal hypothesis test where $H_0: \beta_{log(hinc)} = 0$ and $H_0: \beta_{log(hinc)} \neq 0$. We are going to use the p-values derived from the t-statistic.
+
+*"We reject the null hypothesis of log household income having no relationship with log value in favor of the alternative hypothesis at the 5% significance level."*
+
+## Joint Hypothesis Testing
+Now let's do the full model test.
+We are going to use the p-value derived from the F-statistic.
+Here $H_0$ is that all of the coefficients are zero and $H_a$ is that at least one coefficient (other than the intercept) is different from zero.
+
+*"We reject the null hypothesis that the proposed model as no relationship with log value in favor of at least one coefficient being different from zero at the 5% significance level."*
+
+It is important to remember that we can never accept the alternative model because we are dealing with things that are random. 
+The best we can do is find statistical evidence against the null hypothesis.
+We can never be 100% certain.
+
+# Inference
+**************************************************
+Let's perform inference on two variables: `log(hinc)` and `baths`.
+
+## `log(hinc)`
+
+**Question** What is this kind of coefficient called?
+
+*"An increase in household income by 1% is associated with a 5.7% increase in house value."*
+
+## `baths`
+
+The interpretation here is a bit more tricky.
+We need to obtain
+$\frac{\partial log(value)}{\partial baths} = \beta_{baths} + \beta_{baths*beds} beds$
+
+We can do so as follows:
+```{r}
+beta = coef(ffit)[(grep('baths', names(coef(ffit))))]
+
+df = tibble(x = seq(min(ahs$baths), max(ahs$baths), length = 1000),
+            y = beta[1] + x*beta[2])
+
+ggplot(df, aes(x = x, y = y)) +
+  geom_line() +
+  labs(y = 'Marginal Eff. of +1 Bath', x = 'Beds')
+
+```
+
+As we can see, the marginal effect of adding a bath is conditional on how many beds there are!
+The more beds we have, the less another bath adds to the house value.
+
+Let's perform the inference on the mean value of beds.
+```{r}
+ahs$beds %>% mean
+
+beta[1] + beta[2]*round(mean(ahs$beds))
+```
+Because we cannot have 0.09% of a bedroom, let's look work with a house that has three beds.
+
+*"At the mean value of baths (3), increasing the number of bedrooms by one is associated with a 4.2% increase in the value of a house."*
+
+# Prediction
+******************************
+
+We are going to split our sample so we can do some prediction with our fitted model. 
+Although we should technically go through the model selection procedure again, we will assume that is the selected model on the split data.
+
+## Sample Splitting
+**********************
+
+This is our first step into the machine learning world.
+We are going to split our data into a training sample and a testing sample.
+The training sample is what we will use to fit the model (remember we are cheating here). 
+The test model is where we will perform our predictions and establishing the model quality of fit in the next section.
+
+
+We will start off by splitting the data so 75% is in the training model and the remainder is in the testing model.
+
+Why 75% you may ask?
+Well, it is actually pretty arbitrary. 
+Maybe in the ballpark of 75% is good for our sample size, but we could go all the way down to 50% or even a quarter if we wanted.
+I have seen a paper use a 1% training size, however, that had an insane amount of observations.
+
+```{r}
+set.seed(490) # So you can replicate at home
+
+n = dim(ahs)[1]
+
+# We could do this by index values
+train_i = sample(1:n, n*0.75)
+test_i  = setdiff(1:n, train_i)
+
+train = ahs[train_i, ]
+test  = ahs[test_i, ]
+
+# or we can be a bit more fancy by utilizing R functions
+trainers = c(1:n) %in% train_i
+testers  = !trainers
+
+```
+
+Now we will fit the same final model on the training data and predict using the testing data.
+
+```{r}
+f = ffit$terms
+
+ffitt = lm(f, ahs, subset = trainers)
+
+yhat = predict(ffitt, ahs[testers, ]) # No fancy subset :(
+```
+Tada!
+Notice how we input the entire data set of testers, even though not every variable was used.
+`R` is smart enough to correctly pick the correct variables and transformations.
+
+# Quality of Fit
+***************
+We will finally establish the quality of fit of this model and compare it a simpler model; we need a baseline for comparison.
+We are specifically interested in the smallest MSE.
+
+```{r}
+# MSE of final model
+(  mse = sum((log(ahs[testers, value]) - yhat)^2)/sum(testers)  )
+
+simple_fit = lm(log(value) ~ yos, ahs, subset = trainers)
+simple_yhat = predict(simple_fit, ahs[testers, ])
+
+(  mse2 = sum((log(ahs[testers, value]) - simple_yhat)^2)/sum(testers)  )
+```
+
+From the output we can see that our final model had less error (more accurate) than the simple model that only considers years of schooling.
+
+
+
+
+
+
+
+
+
+
+
+
+

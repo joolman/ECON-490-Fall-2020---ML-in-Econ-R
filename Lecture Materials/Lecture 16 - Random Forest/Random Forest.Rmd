@@ -1,0 +1,129 @@
+---
+title: "Random Forest"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', fig.width = 16, fig.height = 9)
+```
+
+Although tree-based models have an interpretation so clean it essentially describes how humans make decisions, their predictive performance is poor. 
+Since accuracy is the name of the game in machine learning, we will explore two techniques to improve their performance:
+
+1. Bagging
+2. Random Forests
+
+In this handout, we will work with a regression problem.
+
+# Setup
+*****************************************
+
+
+```{r, message = FALSE}
+library(randomForest)
+library(xgboost)
+library(caret)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data continuous.csv') 
+
+# See warning below on why we are doing this
+ahs = ahs %>% 
+  mutate(lcost   = log(cost),
+         lhinc   = log(hinc),
+         leqvval = log(eqvval))
+
+train = sample_frac(ahs, 0.8)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+
+# Bagging
+****************************************
+
+Bagging is **b**ootstrap **agg**regation. 
+As we talked about in the last lecture, trees are high variance but low bias models.
+This is true, especially when they are large.
+Normally we prune them to make the tradeoff of a less variant model that has slightly more bias.
+
+In short, bagging averages many deep trees fit on bootstrapped samples. 
+This reduces the variance because taking averages reduces variance in general. 
+Imagine taking the average of $e_i \sim N(2, 100)$. 
+The first few observations will provide basically no information when averaged.
+However, averaging 1,000 observations will give you a good idea that the mean of the data is two.
+
+Anyway, lets bag ourselves some trees!
+**WARNING:** `randomForest()` **does not take transformations of** $x$ **variables**.
+Why not? I would like to know too...
+```{r}
+f = log(value) ~ lcost + npeople + lhinc + beds + baths + leqvval + lotsize + yos + hoa + condo + garage + bld + crime + math + hinf + houtf
+```
+Here we have 16 covariates.
+We need to specify `mtry = 16` in the randomForest model.
+We will discuss this parameter more in the Random Forest section.
+Let's fit 490 trees, shall we?
+
+```{r bagging}
+system.time({
+fit_bag = randomForest(f, data = train, mtry = 16, ntree = 490)
+})
+fit_bag
+```
+As you can see, fitting this number of models takes a while.
+
+
+Regardless, let's see how we did!
+
+```{r}
+(mse_bag = mse(fit_bag, test))
+```
+
+
+
+# Random Forest
+********************************************
+
+A random forest is bagging with a slight tweak: we randomly consider $m = \sqrt{p}$ of the predictors. 
+This is the `mtry` argument in the `randomForest()` function.
+We want to do this because if some of the covariates are important predictors, then most models that are fitting will pick up on this fact.
+Consequently, the models fitted will be highly correlated.
+They will also ignore some nuances of the other variables that are important for making predictions.
+This leaves room for improvement.
+
+Notice that we have 16 covariates. 
+That means for each tree fit we are only considering 4 variables!
+Not even close to the majority of variables are considered in each tree!
+
+```{r RF}
+system.time({
+fit_rf = randomForest(f, data = train, mtry = sqrt(16), ntree = 490)
+})
+fit_rf
+
+(mse_rf = mse(fit_rf, test))
+```
+
+Wow! 
+What an improvement!
+I would say this is an improvement in three ways:
+
+1. Our test MSE is smaller
+2. This took drastically less time to fit
+3. We improved our pseudo R$^2$ (`% Var explained`) in the training data without overfitting!
+
++1 for the random forest model!
+
+
+
+
+
+
+

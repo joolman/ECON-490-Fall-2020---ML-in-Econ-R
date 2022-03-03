@@ -1,0 +1,304 @@
+---
+title: "Point Clustering"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: false
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center', fig.width = 16, fig.height = 9)
+```
+
+I am curious to see if we use clustering on a high-level occupation with various demographic and economic variables with two clusters if we the algorithm will separate by gender (the gender gap is huge in upper-level occupations).
+We are going to specifically look at Chief Executives and Public Administrators from the 2000 Census.
+You can look at the IPUMS website for the codebook.
+Before we get into it, let's wrangle some data!
+
+# Wrangling and Cleaning
+*****************************
+
+Here is the code chunk so you can copy and paste it.
+```{r wrangling, message = FALSE, warning = FALSE, results = FALSE}
+library(tidyverse)
+library(data.table) # You need this, 1.4gb dataset
+set.seed(490)
+
+usa = fread('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/usa/usa_00024.csv')
+
+names(usa) = names(usa) %>% tolower
+head(usa)
+
+# Trimming the dataset first so manipulations take less time
+nrow(usa)
+usa = usa %>%
+  filter(empstat == 1 &    # Employed
+           wkswork1 >= 40 & # Wokerd at least 40 weeks last year
+           uhrswork >= 30 & # Usually works at least 30 hours
+           workedyr == 3 & # Worked last year 
+           incwage != 9999999 & # wage not missing
+           citypop != 99999 & # city population not missing
+           hhincome != 9999999 ) # HH income not missing
+nrow(usa)
+head(usa)
+
+# We are going to look at chief executive and public administrator occupations
+usa = filter(usa, occ1990 == 4)
+nrow(usa)
+
+# creating some variables
+usa = usa %>%
+  mutate(city_pop = citypop*100,
+         children = (nchild > 0)*1,
+         female = sex - 1,
+         married = (marst %in% c(1:3))*1,
+         black = (race == 2)*1,
+         asian = (race %in% c(3:6))*1,
+         educ = educ) # This is "close" to years of schooling, so we will leave it alone
+```
+
+## Creating Features
+*************************************
+
+We are simply going to use `model.matrix()` with a `formula` to produce the features.
+However, to do so we need to make a faux y variable in the `formula` so `model.matrix()` is happy.
+We are going to use a log transformation, so we will also remove troublesome observations.
+```{r}
+usa = filter(usa, incwage != 0 & trantime != 0 & city_pop != 0)
+f = rep(1, nrow(usa)) ~ educ + wkswork1 + uhrswork + log(incwage) + log(trantime) + log(city_pop) + children + female + married + black + asian - 1
+
+x = model.matrix(f, usa)
+head(x)
+```
+
+Let's see if we can visually detect any differences by gender in a figure of usual hours worked versus income where the color will be assigned by stereotypical, gender-norm enforcing colors.
+```{r}
+ggplot(usa, aes(x = uhrswork, y = log(incwage), color = as.character(female))) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c('#3F89FF','#E12977')) +
+  theme_minimal() +
+  theme(text = element_text(size = 20))
+```
+Maybe? Definitely look at the row of top coded incomes. It appears bluer than the average of the figure.
+
+# K-Means Clustering
+***********************************
+
+Remember that for clustering, it is in general a good idea to standardize the variables. 
+This way each variable gets equal weight.
+Although, you may find yourself in a situation where you want to give extra weight to specific values.
+We do not different weights here because we want the clustering to arise organically.
+
+`kmeans` has the arguments for `k` and `nstart`. `k` is the name of the game. `nstart` is the number of times the algorithm will restart with random assignments in search for the global optimum.
+It will on output the model with the smallest Euclidian distance.
+
+```{r}
+sx = scale(x)
+clust = kmeans(sx, 2, nstart = 20) # k=2 with 20 different random starts
+
+names(clust)
+head(clust$cluster)
+```
+
+
+Now we can compare the assigned groups in two ways.
+
+1. Unconditional assignments on other features via `t.test()`
+2. Conditional assignments on all features via `lm()`
+
+```{r}
+# Creating a data.frame for ease in comparison
+df = bind_cols(y = clust$cluster - 1, sx)
+```
+
+## Unconditional Comparisons
+********************************
+So, let's try some t tests.
+
+```{r}
+t.test(female ~ y, data = df)
+t.test(`log(incwage)` ~ y, data = df) 
+```
+
+Why is `log(incwage)` wrapped in `" `` "`?
+```{r}
+names(df)
+```
+That's why.
+
+## Conditional Comparisons
+****************************************
+
+Remember that in a regression, all estimates are conditional on the other variables in the model.
+So, let's give our good ol' friend the LPM a go.
+```{r}
+lm(y ~ . - 1, data = df) %>% summary
+```
+
+Well, it looks like `group == 1` is primarily married men with children. 
+The F statistic tells us that these groupings are very statistically different from one another.
+
+
+## Different Feature Scaling
+***********
+
+Let's try not using transformations of our variables.
+```{r}
+f = rep(1, nrow(usa)) ~ educ + wkswork1 + uhrswork + incwage + trantime + city_pop + children + female + married + black + asian - 1
+x = model.matrix(f, usa)
+sx = scale(x)
+df = bind_cols(y = clust$cluster - 1, sx)
+clust = kmeans(sx, 2, nstart = 20) 
+lm(y ~ . - 1, data = df) %>% summary
+```
+
+And how about not scaling or transforming our variables.
+```{r}
+f = rep(1, nrow(usa)) ~ educ + wkswork1 + uhrswork + incwage + trantime + city_pop + children + female + married + black + asian - 1
+x = model.matrix(f, usa)
+df = bind_cols(y = clust$cluster - 1, x)
+clust = kmeans(sx, 2, nstart = 20) 
+lm(y ~ . - 1, data = df) %>% summary
+```
+
+Well, there you go.
+
+# Hierarchical Clustering
+***************************
+
+We have two choices:
+
+1. Dissimilarity Measure
+   a. Euclidean distance
+   b. Correlation-based distance
+2. Linkage measure
+   a. Average
+   b. Single (minimal)
+   c. Complete (maximal)
+ 
+The correlation-based distance is in general a better idea in *this* setting, because we have many variables that are zero or one.
+But, we will start off with the distance measure.
+Note that we are going to be using the standardized, but not transformed features.
+
+## Average Linkage
+```{r}
+de = dist(sx)
+
+hc_avg = hclust(de, method = 'average')
+plot(hc_avg)
+```
+
+It looks like we are getting pretty messy below a distance of 6, so do a split to obtain 5 branches.
+```{r}
+hc_avg_trim = cutree(hc_avg, 5)
+table(hc_avg_trim)
+```
+It looks like we have some observations that are dissimilar to the others.
+This may be a useful tool to identify "outlier" observations.
+We could discard them if we are truly trying to identify clusters of similar observations.
+```{r}
+which(hc_avg_trim == 4)
+which(hc_avg_trim == 5)
+```
+But, since we are demonstrating implementation, we can leave them there.
+
+
+## Single Linkage
+*********************************
+```{r}
+hc_sngl = hclust(de, method = 'single')
+plot(hc_sngl)
+```
+
+
+## Complete Linkage
+**************************
+```{r}
+plot(hclust(de, method = 'complete'))
+```
+
+
+Okay, that observation 3878 is showing up in all three. I normally would move on, but I am dying to know more about this observation.
+```{r}
+x[3878,]
+```
+
+
+## Correlation Dissimilarity
+***********************
+
+We need to estimate the correlation between observations.
+Note that two similar observations will have a correlation closer to 1.
+Because we need a measurement of distance, we will subtract 1 by the correlation.
+We will also take the transpose of our features because matrix reasons.
+We will use the complete linkage, because we want fuses to be based upon the similarity of every observation in each cluster.
+
+
+```{r}
+dc = as.dist(1- cor(t(x)))
+hc_cor_cmpl = hclust(dc, method = 'complete')
+plot(hc_cor_cmpl)
+```
+
+
+To demonstrate how to handle comparisons across multiple clusters, I will split the clustering with three groups.
+For one versus one comparisons, we will have $3\choose{2}$ $=\frac{3(3-1)}{2} = 3$ comparisons. 
+For one versus all comparisons, we will have $3$.
+
+In what I show below, we will simply have the code print the output.
+However, there is nothing stopping us from creating an object to store the results.
+A small amount of setup first.
+All tests will be unconditional.
+
+**How would you modify the code below to produce conditional comparisons?**
+```{r}
+y = cutree(hc_cor_cmpl, 3)
+table(y)
+df = data.frame(group = y, sx)
+
+n = length(unique(y))
+P = ncol(sx)
+vars = colnames(sx)
+```
+
+### One Versus One
+*******************************
+```{r}
+for(i in 1:(n-1)){
+  J = (i+1):n 
+  for(j in J){
+    temp = df[df$group %in% c(i,j), ]
+    for(p in 2:(P+1)){
+      t = t.test(temp[,p] ~ temp$group)
+      cat('Variable:', vars[(p-1)], '    Group', i, 'mean:', round(t$estimate[1],2), '    Group', j, 'mean:', round(t$estimate[2],2), '    p-value', signif(t$p.value,2), '\n')
+    }
+  }
+}
+```
+
+
+### One Versus All
+********************************
+```{r}
+for(i in 1:n){
+  temp = df
+  j = which(temp$group != i)
+  temp$group[j] = i+1
+  for(p in 2:(P+1)){
+    t = t.test(temp[,p] ~ temp$group)
+    cat('Variable:', vars[(p-1)], '    Group', i, 'mean:', round(t$estimate[1],2), '    Remaining groups mean:', round(t$estimate[2],2), '    p-value', signif(t$p.value,2), '\n')
+  }
+}
+```
+
+
+
+
+
+
+
+

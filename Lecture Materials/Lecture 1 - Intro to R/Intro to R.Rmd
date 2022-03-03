@@ -1,0 +1,497 @@
+---
+title: "Intro to R"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+At the end of the day, scientific programming languages are just dressed up calculators. 
+`R` is one of them.
+We can easy perform commands such as `1+1` and `R` will output `2`. 
+They are dressed up in the sense that they can perform much more complicated operations than the calculator on your phone (how long until this reference is outdated?).
+Consequently, this requires input to be given in code.
+
+`R` is an object oriented programming language. 
+What this means is that it stores its variables as objects.
+You can think of this like storing things in boxes in your kitchen, where you will work with it.
+Some boxes may have numbers in them, where others could have letters.
+
+# Different R Classes
+*********************************************************************************
+
+## `character`
+
+The first thing to do with any programming language is to bring it to life!
+```{r}
+print("Hello world!") # Brings R to life!
+```
+What we just did was print a string of letters and punctuation, know in `R` as a `character` class.
+We typically wrap these with double quotes (`"`), but this can also be done with single quote (`'`) to produce the following:
+```{r}
+print('"Hello world!" says R.')
+```
+
+## `numeric` and `integer`
+
+Which brings us to numbers.
+There are two classes for numbers: `integer` and `numeric`.
+`numeric`s stores information before *and* after the period, where `integer`s only store information before the period.
+
+```{r}
+class(2.1)
+class(2L)
+class(2)
+```
+There are some other numbers you may not have thought about:
+```{r}
+class(Inf)
+Inf/Inf
+class(NaN) # Not a number
+```
+
+
+## `logical`
+
+There are Booleans or `logical` objects, which simply means true or false.
+You can either type out `TRUE` and `FALSE` or `T` and `F`.
+
+```{r}
+class(TRUE)
+```
+
+But true and false is really just another way to say one or zero.
+Can't remember which one is which?
+Try this:
+
+```{r}
+T*1
+```
+
+We can negate Booleans with an `!`.
+
+```{r}
+!T
+```
+
+You will often come across `NA`s, which is an abbreviation for **not available**. 
+They denote missing data.
+It is not uncommon to find datasets that do not have observations for every variable.
+```{r}
+class(NA)
+```
+They will also mess up your math!
+```{r}
+NA*1
+```
+
+
+## `NULL`
+
+`NULL`s are empty objects.
+They have zero length.
+I use them when I am initializing objects, but don't want to store anything in them initially (haha).
+```{r}
+length(NULL)
+class(NULL)
+NULL*1 # Produces an empty numeric
+```
+
+# Different `R` Objects
+**************************************************************************************************
+As I mentioned above, R is an object oriented language.
+There are several different types of objects in R.
+Let's make a few, shall we?
+
+## Values
+```{r}
+a = 4
+b = 90
+```
+Running this inside of R will show them in the top right of you global environment.
+You can perform math on these objects:
+```{r}
+a*b
+```
+You have a significant amount of freedom while naming objects.
+However, there are a few criteria
+
+- Must begin with a letter (upper or lowercase)
+- Can have numbers in them
+- Can use a `.` or a `_`
+
+Let's give an example:
+```{r}
+name4_1Weird0.Example = a+b
+```
+We can even define lots of objects at the same time if we want them to have the same value!
+```{r}
+the = same = value = 117
+```
+Now that we have had some fun making these objects, we can print them out into the console using `ls()`.
+```{r}
+ls()
+```
+If we don't like what we see, we can remove them using `rm()`
+```{r}
+rm(name4_1Weird0.Example, value)
+```
+And then check to see if it worked
+```{r}
+ls()
+```
+Well would you look at that!
+
+If we are really getting adventurous, we can make objects that have multiple elements using `R`s concatenate function.
+```{r}
+multi = c(4,9,0)
+```
+
+Much like single element object, we can perform math on this too!
+```{r}
+multi^2
+```
+But this does come with a caveat. 
+The objects we are concatenating or merging together must be of the same class.
+As you can see below, merging together a `numeric` with a `character` produces a `character` object.
+This indicated by the quotes being around the elements.
+```{r}
+c('econ', 490)
+```
+Sad.
+
+## `list`
+But what if we want to force it?
+Can you guess what type of object we will need to use?
+That's right! 
+It is a `list`!
+How did you know?!
+```{r}
+class
+class = list('econ', 490)
+class
+class(class) # You can name objects as functions. I would advise against this, however.
+```
+You could make lists with any combination of `numeric`s, `character`s, `matrix`s, `data.frame`s, or even `list`s!
+
+Speaking of matrices...
+
+## `matrix`
+
+Let's create a 2$\times$3 matrix with the a top row of 1, 2, 3 and the bottom of 4, 5, 6.
+```{r, eval = FALSE}
+matrix(1, 2, 3,
+       4, 5, 6)
+# Error in matrix(1, 2, 3, 4, 5, 6) : unused argument (6)
+```
+Well that didn't work...
+Oh right!
+We have to use concatenate!
+```{r}
+matrix(c(1, 2, 3,
+         4, 5, 6))
+```
+Well, that still isn't correct.
+Maybe we need a bit of help.
+Let's try searching the **help page** for matrix.
+Go ahead and type out `?matrix` in your console (the bottom left window).
+
+Ah, so that's the issue. 
+We need to specify that we want a 2$\times$3 matrix. 
+But since we are supplying 6 values, we only need to specify either `nrow` or `ncol` because `R` can do the math to figure out what is missing.
+We will also need to specify the argument `byrow = T`.
+```{r}
+m = matrix(c(1,2,3,4,5,6), nrow = 2, byrow = T)
+m
+```
+Much better!
+
+## `data.frame`
+Now we are getting into the good stuff. 
+Behold, the data frame!
+```{r}
+data.frame(m)
+```
+Holy cow, we have named rows!
+```{r}
+df = data.frame(m)
+df$X2
+```
+Woah! 
+You can grab specific variables by name!
+
+
+Which brings us to indexing.
+This is when we want to grab specific slices of our $\pi$, I mean data.
+You select the *i*th row first, and the *jth* column second.
+Remember this mnemonic for which comes first:
+"*I* can row a boat, but *j* cannot".
+
+Let's do some selection.
+How about the second row and first two columns.
+```{r}
+df[2, c(1:2)]
+```
+Notice the `:`?
+This creates an object that includes all integers from the first number to the last.
+Try this out on your own computer: `4:90`.
+
+Because we are dealing with a `data.frame` and not a `matrix`, we can call the columns by name like so.
+```{r}
+df[2, c('X1', 'X2')]
+```
+Or if simply want all the rows, we just leave the column element blank.
+```{r}
+df[2, ]
+```
+
+We can also generate data frames from scratch.
+Let's create a data frame that has a variable called `state` that represents each state by using `1:50` and a `year` variable for 1776. 
+Note that instead of `1:50`, we will be using the `seq()` function.
+```{r}
+ex_df = data.frame(states = seq(1, 50), year = 1776) # #U.S.A
+```
+This data set is now approaching to be too big to just print. so let's just take a look at the top 6 rows, and the bottom 3 rows.
+```{r}
+head(ex_df)
+tail(ex_df, 3)
+```
+You know what my favorite part of this example is?
+There were absolutely not 50 states in 1776.
+MUWAHAHAHA!
+
+Anyway... We can add on additional variables using our good ol' friend `$`
+```{r}
+ex_df$in_us = TRUE
+```
+
+
+Well, I certainly had fun creating all of these wonderful and lovely objects!
+What about you?
+
+No?
+
+Oh.
+
+Well, then I suppose we should just get rid of everything then.
+```{r}
+ls()
+rm(list = ls())
+ls()
+```
+
+
+# Logic Statements
+*************************************************************************************************
+
+In order to select specific parts of my data, I am *always* using logic statements.
+We will get to how to do this in subsequent lectures, but let's just do some examples for now.
+
+Equality, or not!
+```{r}
+1 == 3
+1 != 3
+```
+Much like negating `logical` objects, we use a `!` to negate equality checks.
+This must go in front of `=`.
+
+We can also check for strict or weak inequality.
+When we want weak inequality, we say **greater** than or **equal** to,
+which is exactly the order we code it out.
+```{r}
+1 < 3 # strict inequality
+1 >= 3 # weak inequality
+```
+
+We can then do *many to one* comparisons.
+```{r}
+3 == c(1,2,3) # order doesn't matter
+```
+
+Or we can do *one to many* comparisons, that is, seeing if an object is in another.
+```{r}
+1 %in% c(1,2,3)
+```
+
+If we want to negate an `%in%` check, the `!` needs to go in front. 
+In theory this works for negating a `==` or inequality statements.
+But in practice that involves typing more, so I only do it when I have to, like with the `%in%` functions.
+```{r}
+!1 %in% c(1,2,3)
+```
+
+
+# Loops
+**********************************************************************************************
+Loops are particularly useful for tedious repetitive tasks.
+This is where the *programming* capabilities of our calculator named `R` can really come in handy.
+I am just going to show you a toy example of a `for` loop that requires an `if` statement.
+```{r}
+set.seed(117) # so you can replicate this at home
+n = 10
+j = rnorm(n, mean = 1, sd = 2^4)
+
+for(i in 1:n){
+  if(j[i] >= 1){print('master')}
+  # else if(j[i] < 1)  This line is redundant, so it is commented out
+  else{
+    print('chief')
+  }
+}
+
+```
+
+
+
+# Loading Data
+*****************************************************************************************
+The two most common types of data files are `.csv` and `.txt`. 
+The first is are "comma separated values" where the latter are tab separate values.
+Open one up with notepad, or whatever the Apple equivalent sometime is to see what I am talking about.
+
+To load in data, we need to tell `R` where it is stored in our computer (where in the basement did we store this box so `R` can bring it to the kitchen?).
+We will be using the Gap Minder data, which collects life expectancy, GDP per capita, and population for many different countries over several years.
+We will just be using the 2007 data.
+See the course website for the file.
+
+**For Windows Users**
+
+1. Open the file location in File Explorer
+2. Right click the file
+3. Properties
+4. Highlight and copy the path to your clipboard (`Ctrl-C`)
+5. Be patient a sec for me to explain this to the Apple users... I am not biased ;)
+
+**For** *inferior-but-we-can-still-be-friends* **Mac Users**
+
+1. Open the file location in Finder
+2. Right click the file
+3. Get info
+4. In the new window that pops up, the third line down should be `where`. Although this doesn't look like a path, highlight and copy. The output will be
+5. Forgive me for the friendly banter 
+
+```{r}
+# Our clipboard will show this
+# C:\Users\johnj\Documents\Data\Applied ML ECON490\lecture data
+# But R HATES backslashes so we need forward slashes.
+# Put it into read.csv() as shown below
+#    Ctrl-f 
+#       put a \ in find
+#       put a  / in replace
+#       click all
+# type out a / followed by the name of the file
+gm = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/gapminder_2007.csv')
+
+```
+
+A good first step after loading in the data is to do some exploration.
+```{r}
+names(gm) # The names of the variables
+str(gm)   # the structure (dimension of data & class of variables)
+summary(gm) # some nice summary statics
+head(gm);tail(gm)
+```
+
+I want to know what continents we have data for, but I don't want to clog my console with output.
+I wonder if there is a function for that...
+```{r}
+unique(gm$continent)
+```
+Well that certainly isn't the 7 continents I know and love...
+
+I wonder how many observations we have for each continent.
+```{r}
+sort(table(gm$continent))
+```
+
+
+# EDA
+*****************************************************************************************
+As you will find out in the data science world, the is a boat load of marketing going on. By the end of the course I hope you have learned that machine learning is just a fancy phrase for statistics. They also have another fancy phrase: Exploratory Data Analysis. Well that sounds mystifying and magical. Let’s do some!
+```{r}
+hist(gm$gdpPercap)
+```
+
+Yup. We just made a histogram.
+
+Although not all EDA is plots, it is basically making plots. Which isn’t to sell it short. We did learn a lot from this histogram that the countries GDPc is a skewed distribution with a long right tail. I have yet to see an income distribution that doesn’t look like this.
+
+Just as a sidebar, **humans are visual creatures**. If you can say what you want in a plot, the do it in a plot.
+
+Let's make a scatter plot of GDP per capita vs. life expectancy.
+To do so, we first need to make a `formula` object to put into `plot()`.
+
+```{r}
+f = lifeExp ~ gdpPercap
+class(f)
+plot(f, data = gm)
+```
+
+Well that is certainly an ugly plot.
+Let's see if we can do any better.
+```{r}
+plot(lifeExp ~ gdpPercap, gm,
+     xlab = 'GDP per Capita', ylab = 'Life Expectancy',
+     main = 'GDPc vs. Life Expectancy',
+     pch = 16)
+```
+
+Well, I suppose that is a bit better but... I think we can do better.
+
+
+
+# Packages
+*****************************************************************************************
+Unfortunately, that is as good as that plot is going to get with base `R`.
+Fortunately, there are people out there who won't settle for mediocracy!
+They will write a bundle of functions to accomplish all sorts of tasks from plotting to neural networks.
+Let's stick with plotting for now. 
+
+Much like using `R`, you need to download it once, then load it every time you want to use it.
+We will be using the package `ggplot2` to make much better looking plots.
+To download or install the package, type `install.package('ggplot')`.
+Notice the package is in quotes.
+When we load the package, we don't need to put in quotes.
+```{r}
+library(ggplot2)
+```
+
+So! On to plotting!
+```{r}
+ggplot(gm, aes(x = gdpPercap, y = lifeExp, color = continent, size = pop)) + #aes = aesthetics
+  geom_point() + # make a scatter plot
+  scale_size_continuous(guide = 'none') + # hide the legend for pop, which is a "continuous" variable
+  scale_color_discrete(name = 'Continent') + # relabeling the color legend which is a "discrete" variable
+  theme_minimal() + # find a black and wide theme for printing
+  theme(text = element_text(size = 20)) # for easier visibility in presentations
+```
+
+Now that's a plot!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

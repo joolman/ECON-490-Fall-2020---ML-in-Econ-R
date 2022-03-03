@@ -1,0 +1,230 @@
+---
+title: "HW4 - Finding Validity: I Choose You!"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: false
+    toc_depth: 3
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+rm(list = ls())
+```
+
+**************
+
+**************
+
+**************
+
+Please submit as a print-to-pdf of the knitted html document as `HW4 firstname lastname.pdf`.
+Put you answers inside appropriate section headers in your document.
+Ensure your first and last name is in the document title area.
+
+Please look through your document and fix functions that span beyond the page width.
+
+***********************************
+
+**************
+
+**************
+
+In this homework, we are going to work on dimension reduction through regularization and PCA.
+Then as good budding data scientists, we will compare our models' performance.
+
+# [25 points] Setup
+************************
+
+Load the following packages:
+
+- **[2 points]** `ModelMetrics` for `mse()`
+- **[2 points]** `caret`
+- **[2 points]** `glmnet`
+- **[2 points]** `pls`
+- **[2 points]** `tidyverse`
+
+Load 
+
+- **[5 points]** the homework data as `cps`.
+
+Set 
+
+- **[5 points]** `message = FALSE` in your code chunk.
+
+
+```{r, include = FALSE, eval = FALSE, message = FALSE}
+library(ModelMetrics)
+library(caret)
+library(glmnet)
+library(pls)
+library(tidyverse)
+
+cps = read.csv("C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data/hw data.csv")
+
+set.seed(490)
+```
+***
+
+**Sample Splitting**
+
+***
+
+- **[5 points]** Split the sample, so train is 78% of the full data size using `sample_frac()`.
+```{r, include = FALSE, eval = FALSE}
+train = cps %>% sample_frac(0.78)
+test  = anti_join(cps, train)
+```
+
+# [25 points] Regularization
+********
+
+Use the following `formula` for every argument:
+
+```{r}
+f = log(ftotval) ~ degree + poly(age,2) + female*anykids + hispan + race + renter + health +
+  rgdp_growth + log(rgdpc) + hpi + coll_share + urate + log(occwage) + lf
+```
+
+
+
+Our objective is to create the best predictor.
+That means, we can skip over trying ridge or lasso, and jump straight to elastic net.
+
+- **[5 points]** Does `glmnet()` standardize the coefficients by default? If it does not, set the arguments so it does.
+```{r, include = FALSE, eval = FALSE}
+# Yes
+```
+
+
+
+Using
+
+- **[2 points]** 3 repeated
+- **[2 points]** 4-fold cross validation
+- **[2 points]** with `metric` as `RMSE`,
+- **[2 points]** fit elastic net object named `fit_enet_cv` using `glmnet()` and `f` on `train`
+- **[1 point]** spanning over `alpha` from 0 to 1 by 0.1
+- **[1 point]** and `lambda` from $10^{-5}$ to $10^{-1}$ by powers of 10.
+- **[2 points]** Show the best tuned model.
+
+
+
+```{r, include = FALSE, eval = FALSE}
+trControl = trainControl(method = 'repeatedcv',
+                      number = 4,
+                      repeats = 3)
+
+fit_enet_cv = train(f,
+                    method = 'glmnet',
+                    trControl = trControl,
+                    metric = 'RMSE',
+                    tuneGrid = expand.grid(alpha = seq(0, 1, length = 11),
+                                           lambda = 10^seq(-5, -1)),
+                    data = train)
+fit_enet_cv$bestTune
+```
+
+
+Refit this model as `fit_enet` with the chosen hyperparameters on 
+
+- **[5 points]** the entire `train` data and 
+- **[3 points]** print the coefficients.
+
+Remember, `glmnet()` outside of the `caret` package requires you to specify $y$ and $\mathbf{X}$ separately.
+
+```{r, include = FALSE, eval = FALSE}
+x = model.matrix(f, train)
+y = log(train$ftotval)
+
+alpha = fit_enet_cv$bestTune$alpha
+
+fit_enet = glmnet(x, y, data = train, 
+              alpha = alpha,
+              lambda = fit_enet_cv$bestTune$lambda)
+coef(fit_enet)
+```
+
+
+
+
+
+# [25 points] PCR
+***
+Using a similar specification as in the Regularization section, fit a `pcr()` model as `fit_pcr_cv`.
+
+- **[5 points]** Does `pcr()` standardize the coefficients by default? If it does not, set the arguments so it does.
+```{r, include = FALSE, eval = FALSE}
+# No
+```
+
+Using
+
+- **[2 points]** 3 repeated
+- **[2 points]** 4-fold cross validation
+- **[2 points]** with `metric` as `RMSE`,
+- **[2 points]** fit elastic net object named `fit_pcr_cv` using `pcr()` and `f` on `train`
+- **[2 points]** spanning over `ncomp` from 1 to 20.
+- **[2 points]** Show the best tuned model.
+
+```{r, include = FALSE, eval = FALSE}
+# Why specify trControl again?
+fit_pcr_cv = train(f,
+                  method = 'pcr',
+                  trControl = trControl,
+                  metric = 'RMSE',
+                  tuneGrid = expand.grid(ncomp = c(1:20)),
+                  data = train,
+                  scale = TRUE)
+fit_pcr_cv$bestTune
+```
+
+- **[8 points]** Refit the selected model on the `train` data as `fit_pcr`.
+```{r, include = FALSE, eval = FALSE}
+fit_pcr = pcr(f, data = train,
+              ncomp = fit_pcr_cv$bestTune$ncomp,
+              scale = T) # 3 points off for not standardizing
+```
+
+# [25 points] Comparison
+***
+
+Use your two models to predict the log total family income from `test`.
+Save the elastic net and PCR predictions as 
+
+- **[5 points]** `yhat_enet`
+- **[5 points]** `yhat_pcr`
+
+Remember, the `glmnet` prediction requires the test $X$ data.
+```{r, include = FALSE, eval = FALSE}
+x_test = model.matrix(f, test)
+yhat_enet = predict(fit_enet, x_test)
+
+yhat_pcr = predict(fit_pcr, test)[,,20]
+```
+
+Using `mse()`, print the MSE for 
+
+- **[5 points]** the elastic net model
+- **[5 points]** the PCR model
+
+```{r, include = FALSE, eval = FALSE}
+y = log(test$ftotval)
+
+# The MSE for the elastic net model
+mse(yhat_enet, y)
+mse(yhat_pcr, y)
+```
+
+Based upon these outputs, which model would you choose?
+
+- **[5 points]**
+
+```{r, include = FALSE, eval = FALSE}
+# Principal components
+```
+
+
+

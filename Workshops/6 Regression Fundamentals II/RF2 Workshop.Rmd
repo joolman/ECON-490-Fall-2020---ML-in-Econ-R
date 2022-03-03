@@ -1,0 +1,46 @@
+---
+title: "Regression Fundamentals II Workshop"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The Mincer earnings function explains an individual's earnings as a function of their years of schooling and potential work experience.
+The base version is:
+$$
+log(wages_i) = \beta_0 + yearsOfSchooling_i\beta_1 + experience_i\beta_2 + experience_i^2 \beta_3 + \epsilon_i
+$$
+We are going to estimate this model to predict wages.
+
+## Setup
+
+1. Load in the `Workshop Data.csv` as `cps`.
+2. Run this code:
+```{r, eval =  FALSE}
+cps$yos = 0
+cps$yos[cps$educ == 1] = NA
+cps$yos[cps$educ == 2] = 0
+cps$yos[cps$educ == 10] = 4
+cps$yos[cps$educ == 20] = 6
+cps$yos[cps$educ == 30] = 8
+cps$yos[cps$educ == 40] = 9
+cps$yos[cps$educ == 50] = 10
+cps$yos[cps$educ == 60] = 11
+cps$yos[cps$educ %in% c(70:73)] = 12 
+cps$yos[cps$educ == 81] = 13
+cps$yos[cps$educ %in% c(91,92)] = 14
+cps$yos[cps$educ == 111] = 16
+cps$yos[cps$educ == 123] = 18
+cps$yos[cps$educ %in% c(124:125)] = 20 
+```
+3. `filter()` the data, so we only have people ages 25 to 65 and those who have weekly earnings greater than 0 and in the universe (less the 9999.99).
+4. `mutate` a variable `exp` for potential experience, which is `age` minus years of schooling minus 6.
+5. Split the data with 75% for training usinf `set.seed(490)`.
+6. Train the base Mincer equation and compute the predicted MSE on `train`.
+7. Train an extended Mincer model with a lower test MSE using the variables at your disposal.
+
+

@@ -1,0 +1,14 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "10/18/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+$C$ $D$ $\sigma \approx 0 \implies$
+
+$k\choose{2}$  $= \frac{k(k-1)}{2}$

@@ -1,0 +1,138 @@
+---
+title: "Workshop - Subset Selection"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+We are going to implement ridge regression, lasso regression, and elastic net regression on the NLSY dataset from the last workshop to predict AFQT scores.
+
+# Instructions
+
+As per usual, we shall load in some packages, load the data, set our seed, and sample split.
+Then we will work on the applications
+
+## Set up
+
+1. load the packages
+   a. `caret`
+   b. `glmnet`
+   c. `tidyverse`
+   d. `modelr`
+2. Set the seed to 490
+3. load the data
+4. Perform a 60-40 train-test split
+
+```{r setup, include = TRUE, message = FALSE}
+library(caret)
+library(glmnet)
+library(tidyverse)
+
+set.seed(490)
+
+nlsy = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/nlsy/nlsy_workshop_data.csv')
+
+train = sample_frac(nlsy, 0.6)
+test  = anti_join(nlsy, train)
+```
+
+## Implementation
+
+From the lecture markdown, recall that elastic-net regression is a convex combination of ridge and lasso:
+$$
+\hat{\beta}^{enet} = \text{argmin } \left( \sum_{i=1}^n y_i - \beta_0 - \sum_{j=1}^p x_{i,j}\beta_j \right)^2 + \lambda \left( \frac{1-\alpha}{2}  \sum_{j=1}^p \beta_j^2 + \alpha \sum_{j=i}^p |\beta_j| \right)
+$$
+where $\alpha \in [0,1]$. 
+If $\alpha = 0$, then we have ridge regression. 
+If $\alpha = 1$, then we have lasso.
+
+
+For the following, use 4 repeated 8-fold cross validation over `lambda = 10^seq(-3, 3, length = 42)` using the formula `afqt ~ .`.
+
+1. Obtain the `bestTune` for a
+   a. ridge regression
+   b. lasso
+   c. elastic net with `alpha = seq(0, 1, length = 11)`
+2. Refit the selected models on `train`
+3. compare the chosen coefficients from lasso and elastic net
+4. Compare `mse()` for the three models and choose the best performing model
+
+
+```{r Lasso, include = TRUE}
+trControl = trainControl(method = 'repeatedcv',
+                         repeats = 4,
+                         number = 8)
+
+x = model.matrix(afqt ~ .,data = train)
+y = train$afqt
+
+
+fitr = train(x,
+             y,
+             method = 'glmnet',
+             trControl = trControl,
+             tuneGrid = expand.grid(alpha = 0, lambda = 10^seq(-3, 3, length = 42)),
+             data = train)
+fitr$bestTune
+
+
+fitl = train(x,
+             y,
+             method = 'glmnet',
+             trControl = trControl,
+             tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-3, 3, length = 42)),
+             data = train)
+fitl$bestTune
+
+
+fite = train(x,
+             y,
+             method = 'glmnet',
+             trControl = trControl,
+             tuneGrid = expand.grid(alpha = seq(0, 1, length = 11),
+                                    lambda = 10^seq(-3, 3, length = 42)),
+             data = train)
+fite$bestTune
+
+# Refitting on train
+fit_ridge = glmnet(x, y, data = train, alpha = fitr$bestTune$alpha, lambda = fitr$bestTune$lambda)
+fit_lasso = glmnet(x, y, data = train, alpha = fitl$bestTune$alpha, lambda = fitl$bestTune$lambda)
+fit_enet  = glmnet(x, y, data = train, alpha = fite$bestTune$alpha, lambda = fite$bestTune$lambda)
+
+# Comparing coefficients
+coef(fit_lasso)
+coef(fit_enet)
+
+# obtaining mses
+y_test = test$afqt
+x_test = model.matrix(afqt ~ ., test)
+
+yhat_ridge = predict(fit_ridge, x_test)
+yhat_lasso = predict(fit_lasso, x_test)
+yhat_enet  = predict(fit_enet, x_test)
+
+mean((y_test - yhat_ridge)^2)
+mean((y_test - yhat_lasso)^2)
+mean((y_test - yhat_enet)^2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

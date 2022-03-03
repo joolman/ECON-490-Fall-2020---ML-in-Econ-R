@@ -1,0 +1,117 @@
+---
+title: "Tree Based Models"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+We are going to build a regression tree predicting the fare paid by passengers on the Titanic.
+
+# Set up
+**********
+Load
+
+- `tree`
+- `tidyverse`
+- `modelr`
+
+Set the seed to 490.
+
+Load the data as `titanic` and sample-split with the training data set to 60%.
+
+
+```{r, message = FALSE, include = FALSE}
+library(tree)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+titanic = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/titanic3.csv')
+
+train = sample_frac(titanic, 0.60)
+test  = anti_join(titanic, train)
+```
+
+# Regression Tree Fitting
+*************************************
+
+Using the `formula` of `fare ~ survived + pclass + sex + sibsp + age, data = train`
+
+1. fit a regression tree
+2. plot it
+3. add the relevant text
+
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+fit_tree = tree(fare ~ survived + pclass + sex + sibsp + age, data = train)
+
+
+plot(fit_tree)
+text(fit_tree)
+```
+
+# Pruning
+*******************
+Following the lecture notes, identify the optimal size of the regression tree.
+
+Using `ggplot()`, plot the deviance vs size.
+
+```{r, message = FALSE, warning = FALSE, include = FALSE}
+fit_tree_cv = cv.tree(fit_tree)
+
+fit_tree_cv
+# The optimal size is 3
+
+df = data.frame(size = fit_tree_cv$size, deviance = fit_tree_cv$dev)
+
+ggplot(df, aes(x = size, y = deviance)) +
+  geom_point() + 
+  geom_line()
+```
+
+Refit the pruned tree with the identified size. Plot it with the appropriate text. Obtain the MSE.
+
+```{r, warning = FALSE, include = FALSE}
+fit_best = prune.tree(fit_tree, best = 3)
+
+plot(fit_best)
+text(fit_best)
+
+mse(fit_best, test)
+```
+
+# OLS Comparison
+
+Using the variables identified in the "best" regression tree (making it a fair fight)
+
+1. fit a linear model
+2. produce its summary
+3. produce the MSE and compare to the regression tree
+
+```{r, include = FALSE}
+fit = lm(fare ~ pclass + sibsp, data = train)
+summary(fit)
+mse(fit, test)
+
+fit = lm(fare ~ pclass*sibsp, data = train)
+summary(fit)
+mse(fit, test)
+
+# OLS is definitely superior
+```
+
+
+
+
+
+
+
+
+

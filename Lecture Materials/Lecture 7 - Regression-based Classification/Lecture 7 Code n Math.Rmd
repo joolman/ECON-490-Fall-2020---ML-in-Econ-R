@@ -1,0 +1,109 @@
+---
+title: "Lecture 7"
+author: "ECON 490: Applied ML in Econ"
+date: "Fall 2020"
+output: 
+  powerpoint_presentation:
+    reference_doc: ECON_490.potx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+path = 'C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data'
+list.files(path)
+
+
+```
+
+##
+$$y = 
+\begin{cases}
+  1 & \text{if a renter}\\
+  0 & \text{if homeowner, i.e. not a renter}
+\end{cases}
+$$
+
+$Y = \alpha + \beta X + \epsilon$
+
+$Y = p(X) + \epsilon$
+ 
+$p(X) = Pr(Y = 1 | X)$
+
+## More math
+
+$$p(X) = \frac{e^{\alpha + \beta X}}{1+e^{\alpha + \beta X}}$$
+$$\frac{p(X)}{1-p(X)} = e^{\alpha + \beta X}$$
+$$log \left( \frac{p(X)}{1-p(X)} \right) = \alpha + \beta X$$
+
+## binomial maximization
+
+$$\text{max } L(\alpha, \beta) = \prod_{i;y_i = 1} p(x_i) \prod_{i;y_i = 0} p(x_i)$$
+
+$$\text{max } l(\alpha, \beta) = \sum_{i;y_i=1} log(p(x_i)) + \sum_{i;y_i=0} log(1-p(x_i))$$
+$$ = \sum_{i=1}^N \Big( y_i log(p(x_i)) + (1-y_i)log(1 - p(x_i)) \Big)$$
+$$ = \sum_{i=1}^N \Big( y_i(\alpha + \beta X) - log(1+e^{\alpha + \beta X})\Big)$$
+
+##
+$\hat{\beta}$
+
+$\hat{y}$
+
+$$ p = \frac{e^{\hat{y}}}{1+e^{\hat{y}}} = .28$$
+
+
+$$ Y = 
+\begin{cases}
+  1 & \text{apples}\\
+  2 & \text{tooth paste}\\
+  3 & \text{charcoal}
+\end{cases}
+$$
+
+##
+
+$$
+log \left( \frac{\text{Pr}(G = 1|X = x)}{\text{Pr}(G = K|X = x)}  \right) = \alpha_1 + \beta_1 X
+$$
+
+$$
+log \left( \frac{\text{Pr}(G = 2|X = x)}{\text{Pr}(G = K|X = x)}  \right) = \alpha_2 + \beta_2 X
+$$
+
+$$
+log \left( \frac{\text{Pr}(G = K-1|X = x)}{\text{Pr}(G = K|X = x)}  \right) = \alpha_{K-1} + \beta_{K-1} X
+$$
+$\vdots$
+
+##
+
+$$
+\text{Pr}(G = k|X = x) = \frac{e^{\alpha_k + \beta_k x}}{1 + \sum_{l=1}^{K-1} e^{\alpha_l + \beta_l x}}
+$$
+
+
+$k = 1, ..., K-1$
+
+$$
+\text{Pr}(G = K|X = x) = \frac{1}{1 + \sum_{l=1}^{K-1} e^{\alpha_l + \beta_l x}}
+$$
+
+## Marginal effects
+
+$$
+\frac{\partial p(X)}{\partial \beta} = \frac{e^{\alpha + x \beta}}{(1+e^{\alpha + x \beta})^2} \beta
+$$
+
+$$
+\approx \frac{e^{\alpha + \bar{x} \beta}}{(1+e^{\alpha + \bar{x} \beta})^2} \beta
+$$
+
+$$
+\approx \frac{1}{n}\sum_{i=1}^n \frac{e^{\hat{y_i}}}{(1+e^\hat{y_i})^2} \beta
+$$
+
+
+
+
+
+

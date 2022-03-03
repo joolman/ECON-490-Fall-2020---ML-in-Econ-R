@@ -1,0 +1,66 @@
+---
+title: "Workshop: Cobb-Douglas"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Today
+
+We are going to estimate the elasticities from the Cobb-Douglas production fucntion
+
+$$
+y = a^{1+\epsilon}k^{\alpha}l^\beta m^\gamma e^\delta
+$$
+Where $a$ is a productivity/technology measure, $k$ is capital, $l$ is labor, $m$ is materials, and $e$ is energy.
+
+## Set up
+
+Load the packages
+
+- `tidyverse`
+- `car`
+
+Load the data as `cd` for Cobb-Douglas.
+
+The first step is to aggregate our industries. 
+Divide `naics` by 1000 and then use `trunc()`.
+Save this value as `ind`.
+
+Next, we need to adjust for inflation.
+Do the following:
+
+- set `y` equal to `vship` divided by `piship`
+- set `k` to `cap` divided by `piship`
+- set `l` to `pay` divided by `piship`
+- set `m` to `matcost` divded by `pimat`
+- set `e` to `energy` divided by `pien`
+
+## Coefficient Estimates
+
+Perform the regression and save the `lm()` output as `fit`.
+Print a summary of `fit`.
+Interpret $\delta$
+
+## Returns to scale part 1
+
+Use `coef()` and sum to determine if the elasticities sum to 1.
+What does it mean if they sum to 1?
+More than 1?
+Less than 1?
+
+## Returns to scale part 2
+
+Use `linearHypothesis(fit, "`$\alpha + \beta + \gamma + \delta = 1$`")` to perform a Wald test.
+Do we accept or reject the null hypothesis?
+
+
+
+
+.

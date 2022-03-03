@@ -1,0 +1,119 @@
+---
+title: "Neural Networks"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Let's use a NN to predict the log value for houses! 
+Here is the setup:
+
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(keras)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data continuous.csv') 
+
+train = sample_frac(ahs, 0.80) 
+test  = anti_join(ahs, train, by = 'id')
+
+f = log(value) ~ log(cost) + hoa + log(hinc) + beds + baths  + lotsize + yos + condo + garage + bld + crime + hinf + houtf
+
+x_train = model.matrix(f, train)
+x_test  = model.matrix(f, test)
+
+y_train = log(train$value)
+y_test  = log(test$value)
+```
+
+First we should double check the bounds of our outcome variable to determine our output layer activation function.
+
+```{r}
+summary(ahs$value)
+```
+
+Great! 
+Since the minimum is 1, then our lower bound is 0, so we can use ReLU or softplus. 
+Let's use softplus for some variety.
+
+# Define The Model
+*****************************
+
+Define a sequential model with two hidden layers.
+Set the first hidden layer to have activation function of `"relu"` and the second to be `"sigmoid"`.
+Use 100 nodes in both layers.
+Set the output layer to have the `"softplus"` activation function.
+
+Print the summary of the initialized model.
+
+```{r, include = TRUE, message = FALSE}
+n = ncol(x_train)
+mod = keras_model_sequential() %>%
+  layer_dense(units = 100, activation = 'relu', input_shape = n) %>%
+  layer_dense(units = 100, activation = 'sigmoid') %>%
+  layer_dense(units = 1, activation = 'softplus')
+
+summary(mod)
+```
+
+
+# Compile the Model
+*****************
+
+Compile the model with the `loss` set to `"mean_absolute_error"` and the `metrics` to `"mean_squared_error"`.
+Use `optimizer_rmsprop()` for the `optimizer`.
+
+
+```{r, include = TRUE}
+mod %>% compile(
+  loss = 'mean_absolute_error',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('mean_squared_error')
+)
+```
+
+
+
+# Train the Model
+*********************
+
+Train the model with 30 epochs, a batch size of 30, and a validation split of 0.25.
+Set up early stopping with a patience of 3.
+
+```{r, include = TRUE}
+history <- mod %>% fit(
+  x_train, y_train, 
+  epochs = 30, batch_size = 30, 
+  validation_split = 0.25,
+  callbacks = callback_early_stopping(patience = 4)
+)
+```
+
+
+
+# Evaluate the Model
+*******************
+
+Following the lecture, evaluate the model.
+
+```{r, include = TRUE}
+mod %>%
+  evaluate(x_test, y_test)
+```
+
+  
+
+# If you get done early...
+***********************
+
+Experiment around with different setups. Can you do better?
+
+

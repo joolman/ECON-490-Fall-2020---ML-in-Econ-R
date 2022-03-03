@@ -1,0 +1,17 @@
+---
+title: "Untitled"
+author: "Applied Machine Learning in Economics"
+date: "10/18/2020"
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+$$ \beta_0 + \beta_1 x_{i1} + ... + \beta_p x_{ip} = 0 $$
+
+$$ \hat{y} = \hat{\alpha} + \hat{\beta}_1 x_{i1} + ... + \hat{\beta}_p x_{ip} $$
+$$ 0  = (\hat{\alpha} - \hat{y}) + \hat{\beta}_1 x_{i1} + ... + \hat{\beta}_p x_{ip} $$
+
+$y = \{-1, 1\}$ $x_i^*$ $C \geq 0$

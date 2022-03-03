@@ -1,0 +1,344 @@
+---
+title: "Cross Validation"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+Today we are going to compare cross-validation (CV) techniques on some relatively simpler models. 
+We are going to use CV on a regression (continuous) and classification problem. 
+
+# Setup
+**************************************
+For this lecture, we are going to use both the continuous and discrete data.
+We are also going to explore the `caret` package.
+
+
+## Loading the Stuff
+*************************************
+
+In case you haven't noticed up to this point that the package `tidyverse` is a collection of multiple packages, looking at the `Attaching Packages` section of the printed message from loading `tidyverse`.
+It tells us what version of these packages we are using.
+
+We also need to set the seed, because sample-splitting and cross-validation requires random draws.
+
+```{r}
+library(tidyverse)
+library(caret)
+
+# r for regression
+ahsr = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/lecture data continuous.csv')
+
+# c for classification
+ahsc = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/Lecture Data/lecture data discrete.csv')
+
+set.seed(490)
+```
+
+
+
+
+## Sample-Splitting
+************************************
+
+Time to split the data!
+I am feeling like the number 67 today.
+It's basically $\frac{2}{3}$ AND is prime!
+Now that we are becoming more familiar with programming in `R`, let's put on our big-kid pants and use `sample_frac`.
+
+```{r}
+trainr = sample_frac(ahsr, 0.67)
+testr  = anti_join(ahsr, trainr, by = 'id')
+
+trainc = sample_frac(ahsc, 0.67)
+testc  = anti_join(ahsc, trainc, by = 'id')
+
+```
+
+
+# Cross-Validation
+****************************************
+We talked about LOOCV and $k$-fold CV.
+We will implement these two techniques and an additional technique: repeated $k$-fold cross-validation.
+
+
+## LOOCV
+*****************************************************
+Don't ever use LOOCV.
+
+Okay, now that I have got that out of the way, let me show you how to do it. 
+The reason we don't want to use it is because of the high likelihood of over fitting. 
+It is still nonetheless important to know how to use a technique and why we don't like it.
+
+```{r}
+# initializing the cross-validation
+trControl = trainControl(method = 'LOOCV')
+
+# Defining the formula outside of the function, because I can't handle the clutter
+f = as.factor(npeople) ~ log(hinc)
+
+# Be carful with LOOCV
+
+system.time(
+{ # Need to wrap in curly brackets, otherwise system.time thinks it is function input
+fit = train(f,
+            method = 'knn',
+            trControl = trControl,
+            tuneGrid = expand.grid(k = 2^(4:6)), # type ?knn, note k is a parameter of knn()
+            metric = "Accuracy",
+            data = trainc[1:3000, ])
+}
+)
+
+fit
+fit$bestTune
+
+dim(trainc)
+length(3:6)
+```
+
+Checking for just *three* values of k on our small subset of `trainc` of just 3,000 observations on a single feature (ML speak for x-variables) took half a minute!
+could you imagine how long it would take if we used the whole training set and more variables? 
+I know I certainly can't (although this is actually a knowable/calculable number).
+
+
+I don't even want to mess around with the continuous case, so let's just move on to something we will actually use...
+
+**Question** Why did I use `as.factor` around `npeople`?
+
+## $k$-Fold CV
+***************************************************
+
+Unlike LOOCV, the $k$-fold CV is much faster and suffers significantly less from overfitting the training sample.
+
+
+### Discrete
+***************************************************
+
+Let's try that same model again, but with 8 (because $0+1*2^3$, duh!) $k$-folds.
+
+```{r}
+trControl = trainControl(method = 'cv',
+                         number = 8)
+
+# You are welcome to define f inside of train() if you wish
+f = as.factor(npeople) ~ log(hinc)
+
+# Be carful with LOOCV
+
+system.time(
+{ # Need to wrap in curly brackets, otherwise system.time thinks it is function input
+fit = train(f,
+            method = 'knn',
+            trControl = trControl,
+            tuneGrid = expand.grid(k = 2^(4:6)), # type ?knn, note k is a parameter of knn()
+            metric = "Accuracy",
+            data = trainc[1:3000, ])
+}
+)
+
+fit
+fit$bestTune
+```
+Less than a second! Much better!
+
+Now we can add some complexity to the model and use the whole `trainc` data.
+
+
+```{r}
+trControl = trainControl(method = 'cv',
+                         number = 8)
+
+f = as.factor(npeople) ~ log(hinc) + beds*baths + condo + garage + crime
+
+
+system.time(
+{ # Need to wrap in curly brackets, otherwise system.time thinks it is function input
+fit = train(f,
+            method = 'knn',
+            trControl = trControl,
+            tuneGrid = expand.grid(k = 2^(4:6)), # type ?knn, note k is a parameter of knn()
+            metric = "Accuracy",
+            data = trainc)
+}
+)
+
+fit
+fit$bestTune
+```
+
+
+### Continuous
+********************************************************
+
+We can also apply `caret` to a continuous model!
+I think we should explore some polynomials of different orders.
+However, notice from the function call:
+
+`lm(log(value) ~ poly(math, degree = i), data = trainr)`
+
+that the `degree = i` is an argument of the `poly()` function, not `lm()`. 
+This means we can't use the `tuneGrid` argument of `train()`.
+Instead, we get to use our lovely `for` loop!
+
+For expositional purposes, let's try fitting this model:
+
+`lm(log(value) ~ poly(log(hinc), yos, i) + poly(math, j))`
+
+where `i`$\in \{1,2\}$ and `j`$\in \{1,2,3\}$.
+To do this, we could either print out the results at each step of the loop, or instead we could create an object to hold the results. 
+Let's do the latter.
+
+As a note, we will have to use the function `bquote()` and `as.formula()` to create our formula.
+Otherwise, the `i` and the `j` won't be input into the model because `train()` won't see that it needs to grab these values from the Global Environment.
+`as.formula()` seems self-explanatory, but check out `?bquote` for more information.
+
+*Note: expand.grid() produces a* `data.frame` *by default*.
+
+```{r}
+results = data.frame(expand.grid(0:2, 1:3),
+                     r2 = NaN,
+                     rmse = NaN)
+names(results)[1:2] = c('i', 'j')
+results
+
+
+trControl = trainControl(method = 'cv',
+                         number = 8)
+
+# initializing i and j
+i = j = 1
+
+f = bquote(log(value) ~ poly(log(hinc), yos, degree = .(i)) + poly(math, .(j))) %>% as.formula
+
+index = 0
+for(i in 0:2){
+  for(j in 1:3){
+    index = index + 1
+    fit = train(f,
+                method = 'lm',
+                data = trainr,
+                trControl = trControl)
+    results$r2[index] = fit$results$Rsquared
+    results$rmse[index] = fit$results$RMSE # root mean squared error
+  }
+}
+
+results
+```
+
+
+Just as a reminder, we are grabbing the $R^2$ and the RMSE from the validation set.
+While we can go through that table, let's plot the $R^2$ values instead.
+Since we are looking over *two* variables, we can produce a heatmap!
+
+```{r}
+ggplot(results, aes(x = i, y = j, fill = r2)) +
+  geom_tile()
+```
+Looks like a first order polynomial on the variable `math` and a first-degree multivariate polynomial on the variables on `beds` and `baths` produces the best fit.
+
+**Warning**: polynomials above degree two or three tend to lead to overfitting.
+
+## Repeated $k$-Fold CV
+****************************************
+
+Repeated $k$-fold CV is an extension to the base $k$-fold CV.
+It is named pretty well; once it has do the first round of $k$ sub-sample splits, it repeats.
+The number of times that it repeats is up to the researcher (you).
+
+The intuition behind repeated $k$-fold is rather straight forward.
+With the base $k$-fold, we are using only a "small sample" of fitted models, which means our accuracy estimates are noisy.
+So, we instead estimate more models using different splits.
+As we will discuss more in neural networks, using the training sample again is called an *epoch.*
+
+
+### Discrete
+************************************************************
+
+The setup and execution should start to seem familiar:
+
+```{r}
+trControl = trainControl(method = 'repeatedcv',
+                         number = 8,
+                         repeats = 10)
+
+f = as.factor(npeople) ~ log(hinc) + beds*baths + condo + garage + crime
+
+
+system.time(
+{ # Need to wrap in curly brackets, otherwise system.time thinks it is function input
+fit = train(f,
+            method = 'knn',
+            trControl = trControl,
+            tuneGrid = expand.grid(k = 2^(4:6)), # type ?knn, note k is a parameter of knn()
+            metric = "Accuracy",
+            data = trainc)
+}
+)
+
+fit
+fit$bestTune
+```
+Just as a general note that you might be starting to pick up on by now, KNN takes a longer than other techniques we have use so far. **Question** why is this?
+
+
+### Metric Confidence Intervals
+******************************************
+
+Now that we have gotten to the last (in my opinion best) of the CVs, I will share a secret with you.
+`train()` produces standard deviations of the metrics!
+
+```{r}
+fit$results$AccuracySD
+```
+
+
+We can use these to construct confidence intervals!
+Following the empirical rule, we have:
+
+| Standard Deviations | Confidence Interval P-Value |
+|---------------------|-----------------------------|
+| 1                   | 68%                         |
+| 2                   | 95%                         |
+| 3                   | 99.7%                       |
+
+
+Let's create a 95% confidence interval of the model with the best accuracy, $k = 32$.
+We are doing this to see if we can statistically distinguish from the case of $k = 16$.
+If not, we should choose the more parsimonious model.
+
+```{r}
+mean32 = fit$results$Accuracy[2]
+sd32 = fit$results$AccuracySD[2]
+
+ci95 = c(mean32 - 2*sd32, mean32 + 2*sd32)
+
+mean16 = fit$results$Accuracy[1]
+
+# Is the mean of k=16 in the confidence interval of k=32?
+mean16 >= ci95[1] & mean16 <= ci95[2]
+
+```
+
+Looks like we should choose the $k=16$ model.
+
+### Continuous
+**********************
+
+We can use the same setup as the regular $k$-fold CV. 
+However, since at this point in the course we don't have any "real" hyperparameters to work with, I will spend more time with this beginning with the regularization lecture.
+
+
+
+
+
+

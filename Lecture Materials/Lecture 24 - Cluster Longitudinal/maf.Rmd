@@ -1,0 +1,53 @@
+---
+title: "Longitudinal Clustering Maf"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: powerpoint_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+$x_{i,j}$  $i = 1,...,n$ $j = 1,...,p$ $d_{i,i^\prime}$ 
+
+$$n\choose{2}$$$$= \frac{n(n-1)}{2}$$
+
+$C_r$ $r = 1,..,k$ $n_r = |C_r|$
+
+$$D_r = \sum_{i,i^\prime \in C_r} d_{i,i^\prime}$$
+
+##
+
+$$W_k = \sum_{r=1}^K \frac{1}{2n_r} D_r$$
+
+$$Gap_n(k) = E[\text{log}(W_k)] - \text{log}(W_k)$$
+
+##
+
+$\hat{k} =$ $k$ $\text{Gap}(k) \geq \text{Gap}(k+1) - s_{k+1}$
+
+$H_0: k = 1$ $\vdots$ $\dots$ $\ddots$
+
+$$
+g(k) = \text{log}\left\{  \frac{\text{MSE}_{X^*}(k)}{\text{MSE}_{X^*}(1)}\right\} - \text{log}\left\{  \frac{\text{MSE}_{X}(k)}{\text{MSE}_{X}(1)}\right\}
+$$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

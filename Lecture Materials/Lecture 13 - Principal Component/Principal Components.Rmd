@@ -1,0 +1,180 @@
+---
+title: "Principal Components"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+    toc_depth: 2
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')#, fig.width = 4, fig.height = 2.25)
+```
+
+Before we begin, we are going to be talking a bit about matrices at a very basic level.
+[Here is a playlist by 3blue1brown](https://www.youtube.com/watch?v=fNk_zzaMoSs&list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab&ab_channel=3Blue1Brown) on YouTube that breaks down what vectors and matrices are all about.
+You don't need to have taken linear algebra or matrix theory to benefit from these videos.
+There is a ballpark of about 2 hours of content in this playlist.
+I have zero expectation that you will watch them all (or any).
+
+I bring this up because matrices are the foundation to machine learning.
+At the end of the day, ML is just math.
+And much like being proficient at art or a sport, math is just a skill. 
+Which means it can be learned.
+And there is beauty in it if you give it the time to appreciate it. 
+The more you can learn, the better of a data scientist you will be.
+
+
+Now that my PSA is over, time for the lecture.
+These principal components can just be thought of as how far the data *stretches* the x-y plane (okay, we have way more than two variables, but the same concept applies).
+
+# The Usual Setup
+
+I have gotten tired of typing out the usual stuff, so let's use an `R` script to do all of this stuff for us.
+```{r}
+source('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/useful.R')
+ls()
+```
+
+The `error(y, yhat)` function calculates the error rate, `rmse(y, yhat)` is self-explanatory, `libraries()` takes a concatenation of package names in quotes, and `load_lecture()` takes either `'discrete'` for the classification data or `'continuous'` for the regression data.
+The packages `tidyverse` and `data.table` are loaded automatically.
+
+
+Now we should split our sample
+```{r}
+libraries(c('pls', 'caret'))
+
+ahs = load_lecture('continuous')
+set.seed(490)
+
+train = sample_frac(ahs, size = 0.75)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+
+# The Principle Principal Components (hehe)
+*************************************
+
+Remember that we need to standardize our covariates, because the size of the units can make one variable (such as GDP measured in USD) dominate others (such as unemployment rate).
+We do so in `R` using the `scale` function.
+
+Let's just work with the model below:
+
+```{r}
+x = model.matrix(log(value) ~ log(cost) + hoa + npeople + beds + baths + log(eqvval) +
+                lotsize + yos + garage  + poly(math, 2) + I(bld == 'Mobile Home') - 1, train)
+pc = prcomp(x, scale = T) # to obtain the principal components.
+pc$rotation[, c(1:4)] # Just so we don't clog up the document
+```
+
+This gives us the new principal components.
+Recall that principal components are *orthogonal* to each other, which means they have a "high dimensional" 90-degree angle between them.
+In math, this means if we take the dot product between them, they are zero.
+So if we have principal component 1 as $a = [a_1, a_2, \dots, a_k]$ and principle component 2 as $b = [b_1,b_2,\dots,b_k]$, we get
+$$
+a \cdot b = \sum_{i}a_ib_i = 0
+$$
+Another example is the simple $x$ and $y$ coordinate plane. 
+We can get to any point in this plane by a combination of $x=(0,1)$ and $y=(1,0)$.
+From the definition above, clearly these are orthogonal. 
+For example the point $(3,-2) = -2x + 3y = -2(0,1) + 3(1,0)$.
+
+By this definition $x$ and $y$ are each a unit (because the magnitude is 1) **basis**, because you can obtain any point in the $x-y$ plane by a combination of the two.
+To cover the entire plane, the bases need not be orthogonal or unit length. 
+We could instead use $(3,-2) = 2(-1,-1) + 2(2.5,0)$.
+
+At the end of the day, eigenvectors are an orthogonal basis with magnitude of the corresponding eigenvalue. 
+
+**_Anyway_** (which is singular)...
+
+To computationally obtain the eigenvectors, we have to use a numerical optimization process, which means the dot product will be "zero" within a tolerance.
+
+```{r}
+pc$rotation[,1] %*% pc$rotation[,4] # %*% is matrix multiplication.
+# See the videos for more details
+```
+
+We get these from the variance-covariance matrix of the $X$ data, where the diagonal is the variance of a variable and the off-diagonal is the covariance between two variables.
+
+```{r}
+std_x = scale(x[, 1:4]) # Remember, we need to standardize
+cov(std_x)
+```
+
+```{r}
+pc2 = eigen(cov(scale(x)))
+pc2$vectors[, 1:4]
+pc$rotation[, 1:4]
+```
+
+Why are some of these eigenvectors different signs? 
+I don't know.
+But ultimately, *it doesn't matter.* 
+Multiplying an orthogonal basis by -1 doesn't change its orthogonality.
+
+## Scree Plots
+************
+
+We can obtain the eigenvalues from `pc2` for our scree plot.
+
+```{r}
+plot(pc2$values)
+```
+
+Of course, when I am trying to demonstrate something useful, it doesn't appear!
+Where is the kink I was talking about in the recording?! Argh!!
+
+If you squint *really* hard, we could maybe say that it is at the fifth component, which means we should use the first four principal components, where order is determined by the associate eigenvalue (or how much the space is stretched by data in the direction of that eigenvalue).
+
+
+## Actually Using Principal Components
+***
+
+We can use principal components as an input to ANY ML algorithm.
+It's just a rotation of our data after all.
+
+```{r}
+fit = pcr(log(value) ~ log(cost) + hoa + npeople + beds + baths + log(eqvval) +
+                lotsize + yos + garage  + poly(math, 2) + I(bld == 'Mobile Home') - 1,
+          data = train,
+          ncomp = 4,
+          scale = T)
+yhat1 = predict(fit, test)
+head(yhat1[,,4])
+```
+
+
+But why don't we just choose this by cross validation...
+
+## CV
+****
+
+```{r}
+trControl = trainControl(method = 'repeatedcv',
+                         number = 5,
+                         repeats = 5)
+
+f = log(value) ~ log(cost) + hoa + npeople + beds + baths + log(eqvval) +
+                lotsize + yos + garage  + poly(math, 2) + I(bld == 'Mobile Home') - 1
+
+fit = train(f,
+      trControl = trControl,
+      method = 'pcr',
+      tuneGrid = expand.grid(ncomp = 1:13), 
+      data = test)
+
+fit$bestTune
+```
+
+
+Yay! Cross-validation didn't let us down, we should use 12 components!
+
+But wait, the whole point of principal components is to reduce the dimension of our data. 
+Perhaps we need to use some intuition here instead. 
+Perhaps the four components are what we should use in the end.
+Again, the number of components will depend or your specific data.
+
+
+

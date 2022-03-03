@@ -1,0 +1,256 @@
+---
+title: "Ensemble Learning"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+We are going to show to work with a regression ensemble using our lecture data to predict house values.
+
+# Setup
+*********************************
+
+Use the same exact setup as from the Random Forest lecture.
+Omit the package `xgboost` and add `glmnet` and `class`.
+
+```{r, message = FALSE, include = FALSE}
+library(randomForest)
+library(glmnet)
+library(class)
+library(caret)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+ahs = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/lecture data/lecture data continuous.csv') 
+
+# See warning below on why we are doing this
+ahs = ahs %>% 
+  mutate(lcost   = log(cost),
+         lhinc   = log(hinc),
+         leqvval = log(eqvval))
+
+train = sample_frac(ahs, 0.8)
+test  = anti_join(ahs, train, by = 'id')
+```
+
+# Base Learners
+**************************************
+
+Let's try a few different base learner models:
+
+1. Random Forest
+2. KNN
+3. OLS from a lasso regression
+
+For all models, use this `formula`
+```{r}
+f = log(value) ~ lcost + npeople + lhinc + beds + baths + leqvval + lotsize + yos + hoa + condo + garage + bld + crime + math + hinf + houtf
+```
+
+## Random Forest
+*******************************
+Fit the model below.
+
+```{r}
+system.time({
+fit_rf = randomForest(f, data = train, mtry = sqrt(16), ntree = 490)
+})
+( mse_rf = mse(fit_rf, test) )
+```
+
+## KNN
+********************************
+And this one:
+
+```{r}
+trControl = trainControl(method = 'cv',
+                         number = 5)
+
+x_train = model.matrix(f, data = train)
+y_train = log(train$value)
+
+
+x_test = model.matrix(f, data = test)
+y_test = log(test$value)
+
+fit_knn_cv = train(x_train, 
+                   y_train,
+                   method = 'knn',
+                   tuneGrid = expand.grid(k = c(5, 10, 15, 20, 30)),
+                   trControl = trControl)
+fit_knn_cv$bestTune
+
+k_best = fit_knn_cv$bestTune$k
+
+fit_knn = knn(x_train, x_test, y_train, k = k_best)
+yhat_knn = fit_knn %>% as.character %>% as.numeric
+
+( mse_knn = mean((yhat_knn - y_test)^2) )
+```
+
+## Regularized OLS
+****************************
+
+And finally, this one.
+
+```{r}
+fit_ols_cv = train(x_train,
+                   y_train,
+                   method = 'glmnet',
+                   trControl = trControl,
+                   tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-8, 5, length = 50)),
+                   data = train)
+fit_ols_cv$bestTune
+
+fit_ols_reg = glmnet(x_train, y_train, alpha = 1, lambda = fit_ols_cv$bestTune$lambda)
+
+coef(fit_ols_reg)
+
+f2 = log(value) ~ lcost + npeople + lhinc + beds + leqvval + lotsize + yos + hoa + condo + garage + bld + crime + math
+
+fit_ols = lm(f2, train)
+
+( mse_ols = mse(fit_ols, test) )
+```
+
+# Ensemble Learning
+************************
+
+Here we will compare three different *stacking* ensemble methods:
+
+1. averaging
+2. weighted averaging
+3. model-aggregating via OLS
+
+Obtain the predicted values for our three fitted models at `yhat_rf`, `yhat_knn`, and `yhat_ols` respectively.
+
+```{r, include = FALSE}
+yhat_rf  = predict(fit_rf,  test)
+yhat_knn = yhat_knn # already done
+yhat_ols = predict(fit_ols, test)
+```
+## Averaging
+*************************************
+
+Calculate the averaging-ensemble MSE.
+
+```{r, include = FALSE}
+yhat_avg_ens = (yhat_rf + yhat_knn + yhat_ols)/3
+
+( mse_avg_ens = mean((yhat_avg_ens - y_test)^2) )
+```
+
+## Weighted Averaging
+***************************
+
+In order to perform weighted averaging, we need to identify the optimal weights.
+We do this by cross validating.
+Unfortunately, I do not know of a any packages that will do it for us.
+Therefore, it is up to us!
+
+Figure out how to do this on your own!
+
+Just kidding... Here you go.
+If you can figure out a more efficient way to do this, within a week from today, I'll give you 1% extra credit for the entire course.
+
+So, basically the first step is to create the weights.
+I am going to brute force with `expand.grid()` and then remove the rows that don't sum exactly to 1.
+Then I am going to use nested `for` loop for the CV on train.
+
+```{r}
+# Creating a grid of weights for our three models
+weights = expand.grid(w1 = seq(0, 1, by = 0.1),
+                      w2 = seq(0, 1, by = 0.1),
+                      w3 = seq(0, 1, by = 0.1))
+weights = weights %>%
+  mutate(w_tot = w1 + w2 + w3,
+         mse   = NaN) %>%
+  filter(w_tot == 1) %>%
+  select(-w_tot)
+
+
+# Setting up the k-fold cross validation
+k_folds = 5
+cv_results = matrix(NaN, ncol = k_folds, nrow = nrow(weights)) 
+                    # using NaN so I can tell if there is a mistake
+
+# Grabbing the "training" data
+yhat_train = cbind(fit_rf$predicted,
+                   as.numeric(as.character(knn(x_train, x_train, y_train, k = k_best))),
+                   predict(fit_ols_reg, x_train))
+# wouldn't it be nice if they just used the same call?
+
+# Setting up the sample splitting: which rows should I grab?
+index = sample(1:k_folds, nrow(train), replace = TRUE)
+for(w in 1:nrow(weights)){
+  for(k in 1:k_folds){
+    i = which(index == k)
+    # Some cheeky matrix multiplication to save time
+    yhat = yhat_train[i, ] %*% t(weights[w, 1:3])
+    
+    # Storing the results
+    cv_results[w, k] = mean( (yhat - y_train[i])^2 )
+  }
+  weights$mse[w] = mean(cv_results[w, ])
+}
+hist(weights$mse)
+```
+
+Identify which weights produce the minimum MSE.
+
+Use these identified weights to compute the test MSE.
+```{r, include = FALSE}
+i = which.min(weights$mse)
+weights[i, 1:3]
+
+yhat_wtd_avg_ens = (yhat_rf*weights[i, 1] +
+                      yhat_knn*weights[i, 2] +
+                      yhat_ols*weights[i, 3])
+
+
+( mse_wtd_avg_ens = mean((yhat_wtd_avg_ens - y_test)^2) )
+```
+
+## Model-Aggregation Ensemble
+*******************************
+
+Finally, we will use OLS to "choose" the weights on the predicted values.
+Remember the OLS will fit coefficients to each covariate.
+It happens to be the case that the covariates are predicted values.
+OLS will also fit an intercept term or a "bias" term.
+This is four parameters chosen.
+They will not add to one.
+Importantly, OLS does this by minimizing MSE.
+
+1. fit a linear model on `y_train` and `yhat_train`.
+   a. produce a summary to identify the loadings
+2. create a new `yhat_test` the same way `yhat_train` was created. The ordering matters
+3. predict the new MSE
+
+```{r, warning = FALSE, include = FALSE}
+fit = lm(y_train ~ yhat_train)
+
+yhat_test = cbind(yhat_rf, yhat_knn, yhat_ols) %>% data.frame
+( mse_mod_ens = mse(fit, yhat_test) )
+```
+
+# Comparisons
+****************************
+
+Print the MSEs for each base learner and the different ensembles.
+Which ensembles performed better than the best base learner alone?
+Which was the best performing model overall?
+
+```{r, include = FALSE}
+mse_rf; mse_knn; mse_ols
+
+mse_avg_ens; mse_wtd_avg_ens; mse_mod_ens
+```

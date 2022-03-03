@@ -1,0 +1,441 @@
+---
+title: "Homework 6: Forest Through the Trees"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: 
+  html_document:
+    toc: yes
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+
+**************
+
+**************
+
+**************
+
+Please submit as a print-to-pdf of the knitted html document as `HW6 firstname lastname.pdf`.
+Put you answers inside appropriate section headers in your document.
+Ensure your first and last name is in the document title area.
+
+Please look through your document and fix functions that span beyond the page width.
+
+**************
+
+**************
+
+**************
+
+**WARNING: THIS HOMEWORK WILL TAKE A WHILE TO COMPILE! START EARLY!**
+*There will be __no exceptions__ made because you were unable to knit and submit your document by the submission deadline*.
+
+**20 point deduction** if you do not knit on the entire dataset.
+
+
+```{r}
+# Starting the timer
+tic = proc.time()
+
+# Scroll to the bottom for the result
+```
+
+# Theory
+*********************************
+
+## [10 points] Trees
+***********************
+
+**Why do we like tree-base models?**
+
+```{r, include = FALSE}
+# EITHER OF THE TWO OR BOTH:
+
+# The have one of the cleanest interpretations. 
+# It is similar to how humans make decisions.
+```
+
+## [10 points] Random Bags of Forests
+*******************************************
+
+**What is the difference between bagging and random forests?**
+```{r, include = FALSE}
+# Must GET BOTH (1) and either (2) or (3)
+#
+# (1) Bagging considers all variables
+# (2) RF considers only a subset of all variables
+# (3) RF decorrelates the trees
+```
+
+## [10 points] Boosting - Gotta go fast!
+******************************************
+
+**What is the biggest concern in boosting?**
+```{r, include = FALSE}
+# Fitting the irreducible noise/overfitting
+```
+
+
+## [10 points] Ensembles
+
+**What are the three methods of ensemble learning we covered in this course?**
+```{r, include = FALSE}
+# MINUS 3 POINTS PER MISSING ITEM
+#   MINUS 10 IF ALL ARE MISSING
+#
+# (1) bagging
+# (2) boosting
+# (3) stacking
+```
+
+
+# Applications
+************************************
+
+**WARNING** Calculating the bagged models is computationally expensive.
+While you are writing your code, I **highly recommend** creating a subset of you data a twentieth of the size of the original using `sample()`.
+Be sure to knit your document and look it over before doing the final knit.
+Before the final knit, ensure you are confident with your code. 
+While it is running, grab a meal or something. 
+
+**IMPORTANT** Generalize your code, as some of your identified optimal hyperparameters may change as the sample size increases.
+
+## [8 points] Preliminaries {#preliminaries}
+***************
+
+- **[1 point]** Load the following packages
+  - `tree`
+  - `randomForest`
+  - `class`
+  - `glmnet`
+  - `caret`
+  - `tidyverse`
+  - `modler`
+- **[1 point]** Load the homework data and define
+  - `lrgdpc   = log(rgdpc)`
+  - `loccwage = log(occwage)`
+  - `lftotval = log(ftotval)`
+- **[1 point]** Set the seed to 490 
+- **[1 point]** Set the training data to 3/4 the size of `cps`
+
+
+```{r preliminaries, message = FALSE, include = FALSE}
+library(tree)
+library(randomForest)
+library(class)
+library(glmnet)
+library(caret)
+library(tidyverse)
+library(modelr)
+set.seed(490)
+
+cps = read.csv("C:/Users/johnj/Documents/Data/Applied ML ECON490/hw data/hw data.csv")
+cps = cps %>% 
+  mutate(lrgdpc   = log(rgdpc),
+         loccwage = log(occwage),
+         lftotval = log(ftotval))
+
+# n = nrow(cps)
+# cps = cps[sample(1:n, n/20), ]
+
+train = sample_frac(cps, .75) 
+test  = anti_join(cps, train)
+```
+
+Using the following formula to create
+
+- **[1 point]** `x_train`
+- **[1 point]** `x_test`
+- **[1 point]** `y_train`
+- **[1 point]** `y_test`
+
+for the functions that need them:
+
+```{r, eval = FALSE}
+lftotval ~ degree + age + female + anykids + hispan + race + renter + health +
+  rgdp_growth + lrgdpc + hpi + coll_share + urate + loccwage + lf - 1
+```
+
+```{r creating, include = FALSE}
+f = lftotval ~ degree + age + female + anykids + hispan + race + renter + health +
+  rgdp_growth + lrgdpc + hpi + coll_share + urate + loccwage + lf - 1
+
+x_train = model.matrix(f, train)
+y_train = train$lftotval
+
+x_test = model.matrix(f, test)
+y_test = test$lftotval
+```
+
+
+
+
+## [11 points] Tree-based Models
+*************************
+Using the formula from the [Preliminaries](#preliminaries) section, 
+
+- **[1 point]** fit a tree on `train` as `fit_tree`
+- **[1 point]** plot the fitted model
+- **[1 point]** add the appropriate text
+
+
+```{r first tree, warning = FALSE, include = FALSE}
+fit_tree = tree(f, train)
+
+plot(fit_tree)
+text(fit_tree)
+```
+
+
+Using cross validation, create a ggplot of the deviance versus size with
+
+- **[1 point]** $x$- and $y$-axis labels with a title
+- **[1 point]** font size 20
+- **[1 point]** `geom_point()`
+- **[1 point]** `geom_line()`
+
+```{r cv tree, warning = FALSE, include = FALSE}
+fit_tree_cv = cv.tree(fit_tree)
+
+df_tree = data.frame(Deviance = fit_tree_cv$dev, Size = fit_tree_cv$size)
+
+ggplot(df_tree, aes(x = Size, y = Deviance)) +
+  geom_point() +
+  geom_line() + 
+  theme(text = element_text(size = 20)) +
+  labs(title = 'Deviance vs Size')
+```
+
+However, you see appropriate, using the results from the cross-validation 
+
+- **[1 point]** identify the optimal model.
+- **[1 point]** fit a pruned tree as `fit_tree_best`
+- **[1 point]** plot it with text
+- **[1 point]** compute and print the MSE of the pruned tree as `mse_tree`
+
+```{r best tree, warning = FALSE, include = FALSE}
+best_size = fit_tree_cv$size[which.min(fit_tree_cv$dev)]
+fit_tree_best = prune.tree(fit_tree, best = best_size)
+
+plot(fit_tree_best); text(fit_tree_best)
+
+( mse_tree = mse(fit_tree_best, test) )
+```
+
+
+## [10 points] Bagging Trees
+**************************
+
+Fit a bagged regression-tree with 42 trees.
+
+- **[2 point]** call the fitted model `fit_bag`
+- **[2 point]** for correct $m$
+- **[2 point]** wrap the code in `system.time()`
+- **[4 point]** compute and print the MSE of the bagged regression tree as `mse_bag`
+
+```{r bagging, include = FALSE}
+# Not that it is 15 covariates, even though race has multiple levels (i.e. not binary).
+# If this were OLS or other methods, we would need to convert race into 3 dummy variables.
+# Because we are dealing with RF, we do not need to.
+# That is part of the beauty of tree-based models.
+system.time({
+fit_bag = randomForest(f, data = train, mtry = 15, ntree = 42) # 22s per
+})
+
+( mse_bag = mse(fit_bag, test) )
+```
+
+
+## [10 points] Random Forests
+***************************
+
+Fit a random forest with 42 trees.
+
+- **[2 point]** call the fitted model `fit_rf`
+- **[2 point]** for correct $m$
+- **[2 point]** wrap the code in `system.time()`
+- **[4 point]** compute and print the MSE of the bagged regression tree as `mse_rf`
+
+```{r rf, include = FALSE}
+# Not that it is 15 covariates, even though race has multiple levels (i.e. not binary).
+# If this were OLS or other methods, we would need to convert race into 3 dummy variables.
+# Because we are dealing with RF, we do not need to.
+# That is part of the beauty of tree-based models.
+system.time({
+fit_rf = randomForest(f, data = train, mtry = sqrt(15), ntree = 42) # 12s per
+})
+
+( mse_rf = mse(fit_rf, test) )
+```
+
+## Ensemble Learning
+****************************
+We are going to use the fitted random forest as the first base learner, where we will add a knn model and a regularized OLS model.
+
+### KNN Base Learner
+********************************
+Run this code:
+
+```{r knn, include = TRUE}
+trControl = trainControl(method = 'cv',
+                         number = 5)
+system.time({
+  fit_knn_cv = train(x_train, 
+                     y_train,
+                     method = 'knn',
+                     tuneGrid = expand.grid(k = c(5, 10, 15, 20, 30)),
+                     trControl = trControl)
+})
+
+fit_knn_cv$bestTune
+k_best = fit_knn_cv$bestTune$k
+
+fit_knn = knn(x_train, x_test, y_train, k = k_best)
+yhat_knn = fit_knn %>% as.character %>% as.numeric
+
+( mse_knn = mean((yhat_knn - y_test)^2) )
+
+```
+
+### Regularized OLS Base Learner
+*****************
+
+And this code:
+
+```{r lasso, warning = FALSE, include = TRUE}
+system.time({
+  fit_ols_cv = train(x_train,
+                     y_train,
+                     method = 'glmnet',
+                     trControl = trControl,
+                     tuneGrid = expand.grid(alpha = 1, lambda = 10^seq(-8, 5, length = 42)),
+                     data = train)
+})
+
+fit_ols_cv$bestTune
+
+fit_ols_reg = glmnet(x_train, y_train, alpha = 1, lambda = fit_ols_cv$bestTune$lambda)
+
+yhat_ols = predict(fit_ols_reg, x_test)
+
+( mse_ols = mean((yhat_ols - y_test)^2) )
+```
+
+### [7 points] Averaging Ensemble
+***************************
+Following the Ensemble Workshop, produce and print the MSE for the averaged ensemble as `mse_avg_ens`.
+
+**Points are awarded for functional form.**
+
+```{r avg ens, include = FALSE}
+yhat_rf = predict(fit_rf, test)
+
+yhat_avg_ens = (yhat_rf + yhat_knn + yhat_ols)/3
+( mse_avg_ens = mean((yhat_avg_ens - y_test)^2) )
+```
+
+### [7 points] Model Aggregation Ensemble
+********************************
+Following the Ensemble Workshop, produce and print the OLS model aggregated MSE as `mse_mod_ens`.
+
+*Hint* `knn(x_train, x_train, y_train, k = k_best)` and `predict(fit_ols_reg, x_train)`
+
+```{r, warning = FALSE, include = FALSE}
+yhat_train = cbind(fit_rf$predicted,
+                   as.numeric(as.character(knn(x_train, x_train, y_train, k = k_best))),
+                   predict(fit_ols_reg, x_train))
+
+fit = lm(y_train ~ yhat_train)
+
+yhat_test = cbind(yhat_rf, yhat_knn, yhat_ols) %>% data.frame
+( mse_mod_ens = mse(fit, yhat_test) )
+```
+
+### [5 bonus points] Weighted Average Ensemble
+*******************************
+Following the Ensemble workshop, produce and print the weighted average MSE as `mse_wtd_avg_ens`.
+
+**POINTS** All or nothing:
+
+- use increments of 0.1 for weights
+- all weights must sum to one
+- 5-fold CV
+- display optimal weights
+- correct functional form of weighted average predictions
+
+```{r, include = FALSE}
+# Creating a grid of weights for our three models
+weights = expand.grid(w1 = seq(0, 1, by = 0.1),
+                      w2 = seq(0, 1, by = 0.1),
+                      w3 = seq(0, 1, by = 0.1))
+weights = weights %>%
+  mutate(w_tot = w1 + w2 + w3,
+         mse   = NaN) %>%
+  filter(w_tot == 1) %>% # ensuring weights sum to 1
+  select(-w_tot)
+
+
+# Setting up the k-fold cross validation
+k_folds = 5
+cv_results = matrix(NaN, ncol = k_folds, nrow = nrow(weights)) 
+                    # using NaN so I can tell if there is a mistake
+
+
+
+# Setting up the sample splitting: which rows should I grab?
+index = sample(1:k_folds, nrow(train), replace = TRUE)
+for(w in 1:nrow(weights)){
+  for(k in 1:k_folds){
+    i = which(index == k)
+    # Some cheeky matrix multiplication to save time
+    yhat = yhat_train[i, ] %*% t(weights[w, 1:3])
+    
+    # Storing the results
+    cv_results[w, k] = mean( (yhat - y_train[i])^2 )
+  }
+  weights$mse[w] = mean(cv_results[w, ])
+}
+
+i = which.min(weights$mse)
+weights[i, 1:3]
+
+yhat_wtd_avg_ens = (yhat_rf*weights[i, 1] +
+                      yhat_knn*weights[i, 2] +
+                      yhat_ols*weights[i, 3])
+
+
+( mse_wtd_avg_ens = mean((yhat_wtd_avg_ens - y_test)^2) )
+```
+
+## [7 points] Comparison
+*************************
+
+Print the following:
+
+1. **[1 point]** `mse_tree`
+2. **[1 point]** `mse_bag`
+3. **[1 point]** `mse_rf`
+4. **[1 point]** `mse_knn`
+5. **[1 point]** `mse_ols`
+6. **[1 point]** `mse_avg_ens`
+7. **[1 point]** `mse_mod_ens`
+8. **[1 point]** `mse_wtd_avg_ens`
+
+
+```{r, include = FALSE}
+mse_tree; mse_bag; mse_rf; mse_knn; mse_ols
+
+mse_avg_ens; mse_mod_ens; mse_wtd_avg_ens
+```
+
+
+```{r}
+toc = proc.time()
+
+(toc - tic)/60 # Duration in minutes to compile
+```
+

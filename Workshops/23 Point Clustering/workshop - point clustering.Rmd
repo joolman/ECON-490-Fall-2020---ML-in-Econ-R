@@ -1,0 +1,73 @@
+---
+title: "Point Clustering"
+author: "Applied Machine Learning in Economics"
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = 'center')
+```
+
+This data for this workshop is based around **customer segmentation**. The name of the game is to identify groups to focus marketing efforts. 
+Load `tidyverse` and the data `Mall_Customer.csv`. 
+The variable names are annoying, so here you go: `names(customer) = c('id', 'gender', 'age', 'income', 'spending_score')`.
+
+We have historically created indicator variables for female, so in one line `mutate()` a indicator variable `male` and `select()` minus the gender variable.
+Create a correlation distance (note we do not need to standardize the features).
+
+Fit a hierarchical clustering with an average linkage and plot the dendrogram. 
+Using `cutree()`, trim to just two clusters.
+Attach a variable `cluster` to the original data that is a `as.factor()` of the labels.
+
+Using `ggplot` with `color = cluster, shape = cluster` in the aesthetics, plot
+
+1. `geom_point()` - income vs spending score
+2. `geom_point()` - age vs spending score
+3. `geom_jitter()` - male vs spending score
+
+Referring back to the dendrogram, what is the largest realistic number of clusters we can choose?
+Using this number of clusters, reproduce the three plots
+
+
+```{r, warning = FALSE, message = FALSE, include = TRUE}
+library(tidyverse)
+customer = read.csv('C:/Users/johnj/Documents/Data/Applied ML ECON490/workshop data/Mall_Customers.csv')
+names(customer) = c('id', 'gender', 'age', 'income', 'spending_score')
+
+customer = customer %>% 
+  mutate(male = (gender == 'Male')*1) %>%
+  select(-gender)
+
+dc = as.dist(1 - cor(t(customer[, -1])))
+
+fit = hclust(dc, method = 'average')
+plot(fit)
+
+lbls = cutree(fit, k = 2)
+customer$cluster = as.factor(lbls)
+
+ggplot(customer, aes(x = income, y = spending_score, color = cluster, shape = cluster)) + 
+  geom_point()
+
+ggplot(customer, aes(x = age, spending_score, color = cluster, shape = cluster)) + 
+  geom_point()
+
+ggplot(customer, aes(x = male, spending_score, color = cluster, shape = cluster)) + 
+  geom_jitter()
+
+lbls = cutree(fit, k = 5)
+customer$cluster = as.factor(lbls)
+
+ggplot(customer, aes(x = income, y = spending_score, color = cluster, shape = cluster)) + 
+  geom_point()
+
+ggplot(customer, aes(x = age, spending_score, color = cluster, shape = cluster)) + 
+  geom_point()
+
+ggplot(customer, aes(x = male, spending_score, color = cluster, shape = cluster)) + 
+  geom_jitter()
+```
+
+
+
